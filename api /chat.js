@@ -1,28 +1,13 @@
-export const config = {
-  runtime: 'edge',
-};
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-    });
-  }
-
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { system, messages } = await req.json();
-
+    const { system, messages } = req.body;
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -30,33 +15,12 @@ export default async function handler(req) {
         'x-api-key': process.env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system,
-        messages,
-      }),
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, system, messages }),
     });
-
     const data = await response.json();
-
-    if (!response.ok) {
-      return new Response(JSON.stringify({ error: data.error?.message || 'API error' }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
-    }
-
     const text = data.content?.map(b => b.text || '').join('') || '';
-    return new Response(JSON.stringify({ text }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
-
+    return res.status(200).json({ text });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Error interno: ' + error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
+    return res.status(500).json({ error: error.message });
   }
 }
