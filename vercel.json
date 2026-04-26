@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/chat.js": {
+      "runtime": "edge"
+    }
+  },
   "rewrites": [
     { "source": "/app", "destination": "/app.html" }
   ]
