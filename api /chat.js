@@ -1,16 +1,27 @@
-export default async function handler(req, res) {
-  // Only allow POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+export const config = {
+  runtime: 'edge',
+};
+
+export default async function handler(req) {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    });
   }
 
-  // CORS headers so the frontend can call this
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
 
   try {
-    const { system, messages } = req.body;
+    const { system, messages } = await req.json();
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -30,13 +41,22 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: data.error?.message || 'API error' });
+      return new Response(JSON.stringify({ error: data.error?.message || 'API error' }), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
     }
 
     const text = data.content?.map(b => b.text || '').join('') || '';
-    return res.status(200).json({ text });
+    return new Response(JSON.stringify({ text }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
 
   } catch (error) {
-    return res.status(500).json({ error: 'Error interno del servidor' });
+    return new Response(JSON.stringify({ error: 'Error interno: ' + error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
   }
 }
