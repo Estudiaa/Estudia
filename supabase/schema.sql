@@ -47,6 +47,12 @@ create table if not exists public.ramos (
   constraint asistencia_coherente check (asist_asistidas <= asist_realizadas and asist_realizadas <= asist_total)
 );
 
+-- Nota de presentación a examen (opcional). np_peso = % de la nota final que vale la NP;
+-- np_min_examen = NP mínima para dar examen; np_eximicion = NP para eximirse (null = examen obligatorio).
+alter table public.ramos add column if not exists np_peso numeric(4,1) check (np_peso > 0 and np_peso < 100);
+alter table public.ramos add column if not exists np_min_examen numeric(2,1) check (np_min_examen between 1.0 and 7.0);
+alter table public.ramos add column if not exists np_eximicion numeric(2,1) check (np_eximicion between 1.0 and 7.0);
+
 create table if not exists public.evaluaciones (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
@@ -63,6 +69,8 @@ create table if not exists public.evaluaciones (
 alter table public.evaluaciones add column if not exists cantidad int not null default 1 check (cantidad between 1 and 20);
 alter table public.evaluaciones add column if not exists notas numeric(2,1)[] check (
   notas is null or (cardinality(notas) <= 20 and 1.0 <= all(notas) and 7.0 >= all(notas)));
+-- 'presentacion' = la ponderación es % de la nota de presentación; 'curso' = % de la nota final.
+alter table public.evaluaciones add column if not exists seccion text not null default 'curso' check (seccion in ('curso', 'presentacion'));
 -- La suma de ponderaciones = 100 se valida en la app (al crear un ramo es obligatoria
 -- y en el detalle se avisa si no cuadra), porque se edita una evaluación a la vez.
 

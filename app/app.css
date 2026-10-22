@@ -475,3 +475,20 @@ table.evals tr.sub-row td { padding-top: 0; }
 .sub { display: flex; align-items: center; gap: 4px; }
 .sub span { font: 500 11px var(--mono); color: var(--light); }
 .sub .cell-input.nota { width: 64px; background: var(--surface); }
+
+/* ---------- Nota de presentación ---------- */
+.np-box { background: var(--bg); border-radius: var(--r-ctl); padding: 14px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 12px; }
+.np-campos .field:last-child, .np-campos .row .field { margin-bottom: 0; }
+.np-campos .row { margin-top: 2px; }
+.sec-hint { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.ev-sec { margin-top: 6px; }
+.ev-sec + .ev-sec { margin-top: 18px; }
+.sec-block { border: 1px solid var(--border); border-radius: var(--r-card); padding: 14px 14px 12px; margin-top: 16px; }
+.sec-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sec-sub { color: var(--muted); font-size: 12px; }
+.np-val { font-size: 28px; font-weight: 500; }
+.reglas { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; }
+.regla { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.sec-block .table-wrap { margin-top: 8px; }
+.sec-vacia { font-size: 13px; margin: 12px 0; }
+.input.mono::placeholder { font-family: var(--sans); font-size: 14px; }

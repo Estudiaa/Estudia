@@ -155,3 +155,50 @@ test('Evaluación agrupada: promedio de varias notas', async () => {
   assert.equal(notaEval({ nota: 4.5 }), 4.5);
   assert.equal(evalCompleta({ nota: null }), false);
 });
+
+test('Nota de presentación (70%) + Examen (30%) con mínimo 3.5 para dar examen', async () => {
+  const { necesidadDe } = await import('../app/engine.js');
+  const ramo = { np_peso: 70, np_min_examen: 3.5 };
+  const p = (ponderacion, nota = null, extra = {}) => ev(ponderacion, nota, { seccion: 'presentacion', ...extra });
+  const evals = [
+    p(35, 5.0),                                              // Solemne 1: 35% de la NP
+    p(35),                                                   // Solemne 2
+    p(30, null, { cantidad: 4, notas: [4.0, 4.0] }),         // Controles: 4 notas, 30% de la NP
+    ev(30),                                                  // Examen: 30% de la nota final
+  ];
+  const c = calcRamo(ramo, evals);
+  assert.equal(c.pondOk, true);
+  // NP actual: (5·35 + 4·7.5 + 4·7.5) / 50 = 4.7
+  assert.equal(fmtNota(c.np.actual), '4.7');
+  // Rendido sobre la nota final: 5·24.5 + 4·5.25·2 = 164.5; pendiente 65 → (400 − 164.5) / 65 = 3.62
+  assert.equal(c.notaMinMostrar, 3.7);
+  // Para la NP mínima basta con (350 − 235) / 50 = 2.3, así que no cambia nada.
+  assert.equal(fmtNota(c.np.necMin), '2.3');
+  assert.equal(necesidadDe(c, evals[3]).valor, 3.7);
+  assert.equal(c.prob, 70);
+
+  // Con un mínimo exigente (5.0) la presentación pide 5.3 y el examen solo 1.7.
+  const exigente = calcRamo({ np_peso: 70, np_min_examen: 5.0 }, evals);
+  assert.equal(necesidadDe(exigente, evals[1]).valor, 5.3);
+  assert.equal(necesidadDe(exigente, evals[3]).valor, 1.7);
+  assert.equal(exigente.prob, 42);
+});
+
+test('Sin derecho a examen y eximición', () => {
+  const p = (ponderacion, nota) => ev(ponderacion, nota, { seccion: 'presentacion' });
+  const bajo = calcRamo({ np_peso: 70, np_min_examen: 3.5 }, [p(50, 3.0), p(50, 3.0), ev(30)]);
+  assert.equal(bajo.estadoMin, 'sin-examen');
+  assert.equal(bajo.prob, 0);
+  assert.equal(bajo.zona, 'rojo');
+
+  const exim = calcRamo({ np_peso: 70, np_eximicion: 5.5 }, [p(50, 6.0), p(50, 6.0), ev(30)]);
+  assert.equal(exim.estadoMin, 'eximido');
+  assert.equal(fmtNota(exim.notaActual), '6.0');
+  assert.equal(exim.finalizado, true);
+  assert.equal(exim.aprobado, true);
+
+  // Sin eximición configurada, una NP alta igual obliga a rendir el examen.
+  const sinExim = calcRamo({ np_peso: 70 }, [p(50, 6.0), p(50, 6.0), ev(30)]);
+  assert.equal(sinExim.finalizado, false);
+  assert.equal(sinExim.estadoMin, 'asegurado');
+});

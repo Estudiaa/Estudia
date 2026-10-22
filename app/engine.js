@@ -42,58 +42,155 @@ export function expandirEvals(evaluaciones) {
 
 // ---------- Ramo ----------
 
+// ---------- Nota de presentación a examen ----------
+// Un ramo puede tener una "nota de presentación" (NP) que vale np_peso% de la nota final.
+// Las evaluaciones con seccion = 'presentacion' tienen su ponderación como % de la NP
+// (suman 100); el resto (ej: Examen) pondera directo sobre la nota final.
+// Reglas opcionales: np_min_examen (NP mínima para dar examen) y np_eximicion (NP para eximirse).
+
+export const usaPresentacion = (ramo) => Number(ramo?.np_peso) > 0 && Number(ramo?.np_peso) < 100;
+export const enPresentacion = (e) => e.seccion === 'presentacion';
+const numONull = (v) => (v === null || v === undefined || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+
+function probDeNecesaria(n) {
+  if (n <= 1.0 + EPS) return 98;
+  if (n <= 3.5 + EPS) return 88;
+  if (n <= 4.5 + EPS) return 70;
+  if (n <= 5.5 + EPS) return 42;
+  if (n <= 6.5 + EPS) return 20;
+  if (n <= ESCALA_MAX + EPS) return 5;
+  return 0; // no alcanza ni con un 7.0
+}
+
+const mostrar = (n) => (n === null ? null : ceil1(Math.min(Math.max(n, ESCALA_MIN), ESCALA_MAX)));
+
+// ---------- Ramo ----------
+
 export function calcRamo(ramo, evaluaciones) {
   const aprob = Number(ramo.nota_aprobacion) || APROBACION_DEFAULT;
-  const evals = expandirEvals(evaluaciones).filter((e) => Number(e.ponderacion) > 0);
-  const totalPond = sum(evals.map((e) => Number(e.ponderacion)));
+  const npPeso = usaPresentacion(ramo) ? Number(ramo.np_peso) : null;
+  const items = expandirEvals(evaluaciones).filter((e) => Number(e.ponderacion) > 0);
+  const pres = npPeso ? items.filter(enPresentacion) : [];
+  const curso = npPeso ? items.filter((e) => !enPresentacion(e)) : items;
+  const presTotal = sum(pres.map((e) => Number(e.ponderacion)));
+  const cursoTotal = sum(curso.map((e) => Number(e.ponderacion)));
+
+  // Todo se lleva a peso sobre la nota final. La NP siempre pesa np_peso%, aunque sus % no sumen 100.
+  const evals = [
+    ...curso.map((e) => ({ ...e, ponderacion: Number(e.ponderacion), _pres: false })),
+    ...pres.map((e) => ({ ...e, _pp: Number(e.ponderacion), ponderacion: (Number(e.ponderacion) / presTotal) * npPeso, _pres: true })),
+  ];
+  const totalPond = sum(evals.map((e) => e.ponderacion));
   const notadas = evals.filter(tieneNota);
   const pendientes = evals.filter((e) => !tieneNota(e));
 
-  const pondNotadas = sum(notadas.map((e) => Number(e.ponderacion)));
-  const sumRendido = sum(notadas.map((e) => Number(e.nota) * Number(e.ponderacion)));
-  const notaActual = pondNotadas > 0 ? sumRendido / pondNotadas : null;
-  const pesoPend = sum(pendientes.map((e) => Number(e.ponderacion)));
+  const pondNotadas = sum(notadas.map((e) => e.ponderacion));
+  const sumRendido = sum(notadas.map((e) => Number(e.nota) * e.ponderacion));
+  let notaActual = pondNotadas > 0 ? sumRendido / pondNotadas : null;
+  const pesoPend = sum(pendientes.map((e) => e.ponderacion));
   const notaMinPend = pesoPend > 0 ? (aprob * totalPond - sumRendido) / pesoPend : null;
 
-  // Bug §10.2: notaMinPend puede quedar bajo 1.0 (ya asegurado) o sobre 7.0 (imposible).
+  // Nota de presentación
+  let np = null;
+  if (npPeso) {
+    const pN = pres.filter(tieneNota);
+    const pPend = sum(pres.filter((e) => !tieneNota(e)).map((e) => Number(e.ponderacion)));
+    const pSum = sum(pN.map((e) => Number(e.nota) * Number(e.ponderacion)));
+    const pPondN = sum(pN.map((e) => Number(e.ponderacion)));
+    const completa = pres.length > 0 && pPend === 0;
+    const minExamen = numONull(ramo.np_min_examen);
+    const eximicion = numONull(ramo.np_eximicion);
+    const necPara = (meta) => (pPend > 0 ? (meta * presTotal - pSum) / pPend : null);
+    const final = completa ? pSum / presTotal : null;
+    np = {
+      peso: npPeso,
+      total: presTotal,
+      cursoTotal,
+      actual: pPondN > 0 ? pSum / pPondN : null,
+      final,
+      completa,
+      minExamen,
+      eximicion,
+      necMin: minExamen !== null && !completa ? necPara(minExamen) : null,
+      necExim: eximicion !== null && !completa ? necPara(eximicion) : null,
+      cumpleMin: minExamen === null ? true : completa ? final >= minExamen - EPS : null,
+      eximido: eximicion !== null && completa && final >= eximicion - EPS,
+    };
+  }
+
+  // Lo que se necesita en cada sección. Sin reglas es la misma nota en todo lo pendiente;
+  // si para llegar a la NP mínima hace falta más, la presentación exige eso y el examen menos.
+  const pendPres = sum(pendientes.filter((e) => e._pres).map((e) => e.ponderacion));
+  const pendCurso = sum(pendientes.filter((e) => !e._pres).map((e) => e.ponderacion));
+  let necPres = pendPres > 0 ? notaMinPend : null;
+  let necCurso = pendCurso > 0 ? notaMinPend : null;
+  if (np && np.necMin !== null && pendPres > 0 && np.necMin > notaMinPend + EPS) {
+    necPres = np.necMin;
+    necCurso = pendCurso > 0 ? (aprob * totalPond - sumRendido - necPres * pendPres) / pendCurso : null;
+  }
+  const necesarias = [necPres, necCurso].filter((n) => n !== null);
+  const necMax = necesarias.length ? Math.max(...necesarias) : null;
+
   let estadoMin = null;
-  if (notaMinPend !== null) {
-    if (notaMinPend <= ESCALA_MIN + EPS) estadoMin = 'asegurado';
-    else if (notaMinPend > ESCALA_MAX + EPS) estadoMin = 'imposible';
+  if (necMax !== null) {
+    if (necMax <= ESCALA_MIN + EPS) estadoMin = 'asegurado';
+    else if (necMax > ESCALA_MAX + EPS) estadoMin = 'imposible';
     else estadoMin = 'normal';
   }
 
+  let finalizado = evals.length > 0 && pendientes.length === 0;
+  let aprobado = finalizado ? notaActual >= aprob - EPS && np?.cumpleMin !== false : null;
   let prob = null;
   if (evals.length === 0) prob = null;
   else if (pendientes.length === 0) {
-    if (notaActual >= aprob - EPS) prob = 95;
-    else if (notaActual >= aprob - 0.5 - EPS) prob = 40;
+    if (aprobado) prob = 95;
+    else if (notaActual >= aprob - 0.5 - EPS && np?.cumpleMin !== false) prob = 40;
     else prob = 10;
-  } else if (notaMinPend <= 1.0 + EPS) prob = 98;
-  else if (notaMinPend <= 3.5 + EPS) prob = 88;
-  else if (notaMinPend <= 4.5 + EPS) prob = 70;
-  else if (notaMinPend <= 5.5 + EPS) prob = 42;
-  else if (notaMinPend <= 6.5 + EPS) prob = 20;
-  else if (notaMinPend <= ESCALA_MAX + EPS) prob = 5;
-  else prob = 0; // no alcanza ni con un 7.0
+  } else prob = probDeNecesaria(necMax);
+
+  if (np?.eximido) {
+    // Eximido: la nota final es la NP y el examen ya no se rinde.
+    estadoMin = 'eximido';
+    notaActual = np.final;
+    finalizado = true;
+    aprobado = np.final >= aprob - EPS;
+    prob = aprobado ? 95 : 10;
+    necCurso = null;
+  } else if (np && np.cumpleMin === false) {
+    estadoMin = 'sin-examen';
+    prob = 0;
+  }
 
   return {
     aprob,
     evals,
     totalPond,
-    pondOk: evaluaciones.length === 0 || Math.abs(totalPond - 100) < 0.01,
+    pondOk: npPeso
+      ? (pres.length === 0 || Math.abs(presTotal - 100) < 0.01) && Math.abs(cursoTotal - (100 - npPeso)) < 0.01
+      : evaluaciones.length === 0 || Math.abs(totalPond - 100) < 0.01,
     nEvals: evals.length,
     nRendidas: notadas.length,
     nPendientes: pendientes.length,
     notaActual,
     notaMinPend,
-    notaMinMostrar: notaMinPend === null ? null : ceil1(Math.min(Math.max(notaMinPend, ESCALA_MIN), ESCALA_MAX)),
+    notaMinMostrar: mostrar(necMax),
+    necesita: { presentacion: necPres, curso: necCurso },
+    necesitaMostrar: { presentacion: mostrar(necPres), curso: mostrar(necCurso) },
     estadoMin,
-    finalizado: evals.length > 0 && pendientes.length === 0,
-    aprobado: evals.length > 0 && pendientes.length === 0 ? notaActual >= aprob - EPS : null,
+    np,
+    finalizado,
+    aprobado,
     prob,
     zona: zonaDeProb(prob),
   };
+}
+
+// Nota que necesita una evaluación pendiente según su sección: { valor, estado }.
+export function necesidadDe(c, e) {
+  const raw = c.np && enPresentacion(e) ? c.necesita.presentacion : c.necesita.curso;
+  if (raw === null || raw === undefined) return { valor: null, estado: null };
+  const estado = raw <= ESCALA_MIN + EPS ? 'asegurado' : raw > ESCALA_MAX + EPS ? 'imposible' : 'normal';
+  return { valor: mostrar(raw), estado };
 }
 
 export function zonaDeProb(prob) {

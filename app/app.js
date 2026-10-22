@@ -458,26 +458,39 @@ function viewSidebar(an) {
 
 function textoAlerta(c) {
   if (c.zona === 'neutral') return { ico: 'i', txt: 'Agrega evaluaciones con su ponderación para calcular tu riesgo.' };
+  if (c.estadoMin === 'eximido') return { ico: '✓', txt: `Te eximiste del examen: tu nota final es ${fmt(c.notaActual)}.` };
   if (c.finalizado)
     return c.aprobado
       ? { ico: '✓', txt: `Ramo aprobado con un ${fmt(c.notaActual)}.` }
       : { ico: '!', txt: `Nota final ${fmt(c.notaActual)}: bajo la nota de aprobación (${fmt(c.aprob)}).` };
+  if (c.estadoMin === 'sin-examen')
+    return { ico: '!', txt: `Tu nota de presentación (${fmt(c.np.final)}) no alcanza el ${fmt(c.np.minExamen)} mínimo para dar examen.` };
   if (c.estadoMin === 'asegurado') return { ico: '✓', txt: `Ya aprobaste este ramo: aunque saques un 1.0 en lo pendiente llegas al ${fmt(c.aprob)}.` };
+  if (c.estadoMin === 'imposible' && c.np?.necMin > 7 && c.necesita.presentacion === c.np.necMin)
+    return { ico: '!', txt: `No alcanzas la nota de presentación mínima (${fmt(c.np.minExamen)}) para dar examen, ni con 7.0 en lo que queda.` };
   if (c.estadoMin === 'imposible') return { ico: '!', txt: 'No alcanza ni con un 7.0 en lo pendiente. Habla con tu profesor sobre alternativas.' };
   const pre = { verde: 'Vas bien.', amarillo: 'Atención.', rojo: 'Actúa ahora.' }[c.zona];
   const ico = { verde: '✓', amarillo: '⚠', rojo: '!' }[c.zona];
+  const { presentacion: nPres, curso: nCurso } = c.necesitaMostrar;
+  if (c.np && nPres !== null && nCurso !== null && nPres !== nCurso)
+    return { ico, txt: `${pre} Necesitas ${fmt(nPres)} en lo que queda de la presentación y ${fmt(nCurso)} en el examen.` };
   return { ico, txt: `${pre} Necesitas ${fmt(c.notaMinMostrar)} en las evaluaciones pendientes.` };
 }
 
 function estadoEval(e, c) {
+  const examen = c.np && !E.enPresentacion(e);
+  if (examen && c.estadoMin === 'eximido') return pill('verde', 'Eximido');
+  if (examen && c.estadoMin === 'sin-examen') return pill('rojo', 'Sin derecho');
   if (E.evalCompleta(e)) return E.notaEval(e) >= c.aprob - 1e-9 ? pill('verde', 'Aprobado') : pill('rojo', 'Bajo mínimo');
   if (!(Number(e.ponderacion) > 0)) return pill('neutral', 'Sin ponderación');
-  if (c.estadoMin === 'asegurado') return pill('verde', 'Asegurado');
-  if (c.estadoMin === 'imposible') return pill('rojo', 'No alcanza');
-  return pill(c.zona, `Necesitas ${fmt(c.notaMinMostrar)}`);
+  const n = E.necesidadDe(c, e);
+  if (n.estado === 'asegurado') return pill('verde', 'Asegurado');
+  if (n.estado === 'imposible') return pill('rojo', 'No alcanza');
+  return pill(c.zona, `Necesitas ${fmt(n.valor)}`);
 }
 
 function filaEvalDetalle(e, c) {
+  const enPres = c.np && E.enPresentacion(e);
   const id = esc(e.id);
   const grupo = E.esGrupo(e);
   const prom = E.notaEval(e);
@@ -490,6 +503,7 @@ function filaEvalDetalle(e, c) {
         <input class="cell-input" id="ev-${id}-nombre" data-change="ev" data-id="${id}" data-field="nombre" value="${esc(e.nombre)}" maxlength="80" aria-label="Nombre de la evaluación">
         <input class="cell-input date" type="date" id="ev-${id}-fecha" data-change="ev" data-id="${id}" data-field="fecha" value="${esc(e.fecha ?? '')}" aria-label="Fecha de ${esc(e.nombre)}">
         ${grupo ? '' : `<button class="linkbtn split-btn" id="split-${id}" data-act="dividir" data-id="${id}">÷ Es un promedio de varias notas</button>`}
+        ${c.np ? `<button class="linkbtn split-btn" id="mover-${id}" data-act="mover" data-id="${id}">${enPres ? '→ Sacar de la presentación' : '→ Mover a la presentación'}</button>` : ''}
       </div></td>
       <td><input class="cell-input num" inputmode="decimal" id="ev-${id}-ponderacion" data-change="ev" data-id="${id}" data-field="ponderacion" value="${esc(Number(e.ponderacion))}" aria-label="Ponderación en %"><span class="light">%</span></td>
       <td style="text-align:center">${notaCell}</td>
@@ -502,7 +516,7 @@ function filaEvalDetalle(e, c) {
   return fila + `
     <tr class="sub-row"><td colspan="5"><div class="subnotas">
       <div class="sub-head">
-        <span>${notas.length} notas · cada una vale <span class="mono">${cada}%</span></span>
+        <span>${notas.length} notas · cada una vale <span class="mono">${cada}%</span>${enPres ? ' de la presentación' : ''}</span>
         <span class="cant">
           <button class="cant-btn" id="cant-menos-${id}" data-act="cantidad" data-id="${id}" data-d="-1" aria-label="Quitar una nota">−</button>
           <button class="cant-btn" id="cant-mas-${id}" data-act="cantidad" data-id="${id}" data-d="1" aria-label="Agregar una nota" ${notas.length >= E.MAX_SUBNOTAS ? 'disabled' : ''}>+</button>
@@ -514,6 +528,69 @@ function filaEvalDetalle(e, c) {
     </div></td></tr>`;
 }
 
+function tablaEvals(evals, c, colPond) {
+  return `<div class="table-wrap">
+    <table class="evals">
+      <thead><tr><th>Evaluación</th><th>${colPond}</th><th style="text-align:center">Nota</th><th>Estado</th><th><span class="hidden">Borrar</span></th></tr></thead>
+      <tbody>${evals.map((e) => filaEvalDetalle(e, c)).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+function reglasPresentacion(np) {
+  const out = [];
+  if (np.minExamen !== null) {
+    let estado;
+    if (np.cumpleMin === true) estado = pill('verde', 'Cumples el mínimo');
+    else if (np.cumpleMin === false) estado = pill('rojo', 'Sin derecho a examen');
+    else if (np.necMin <= 1) estado = pill('verde', 'Mínimo asegurado');
+    else if (np.necMin > 7) estado = pill('rojo', 'No alcanzas el mínimo');
+    else estado = pill(np.necMin > 5.5 ? 'rojo' : 'amarillo', `Necesitas ${fmt(E.ceil1(np.necMin))} para presentarte`);
+    out.push(`<div class="regla"><span>Mínimo <span class="mono">${fmt(np.minExamen)}</span> para dar examen</span>${estado}</div>`);
+  }
+  if (np.eximicion !== null) {
+    let estado;
+    if (np.eximido) estado = pill('verde', 'Eximido');
+    else if (np.completa) estado = pill('neutral', 'No te eximiste');
+    else if (np.necExim <= 1) estado = pill('verde', 'Eximición asegurada');
+    else if (np.necExim > 7) estado = pill('neutral', 'Fuera de alcance');
+    else estado = pill('teal', `Necesitas ${fmt(E.ceil1(np.necExim))} para eximirte`);
+    out.push(`<div class="regla"><span>Eximición con <span class="mono">${fmt(np.eximicion)}</span></span>${estado}</div>`);
+  } else out.push('<div class="regla"><span class="light">Examen obligatorio</span></div>');
+  return out.join('');
+}
+
+function bloquesEvals({ calc: c, evals }) {
+  const agregar = (sec, txt) => `<button class="btn-dashed" id="add-ev-${sec}" data-act="nueva-ev" data-sec="${sec}">${txt}</button>`;
+  if (!c.np) {
+    const warn = c.pondOk ? '' : `<div class="warn-pond">⚠ Las ponderaciones suman <span class="mono">${round1(c.totalPond)}%</span>; deberían sumar 100%. El cálculo puede no reflejar tu nota real.</div>`;
+    return tablaEvals(evals, c, 'Pond.') + warn + agregar('curso', '+ Agregar evaluación');
+  }
+  const np = c.np;
+  const pres = evals.filter(E.enPresentacion);
+  const curso = evals.filter((e) => !E.enPresentacion(e));
+  const sumaCurso = curso.reduce((a, e) => a + (Number(e.ponderacion) || 0), 0);
+  const npVal = np.final ?? np.actual;
+  const zNp = npVal === null ? 'neutral' : np.minExamen !== null && npVal < np.minExamen ? 'rojo' : npVal >= c.aprob ? 'verde' : 'amarillo';
+  const warnPres = pres.length && Math.abs(np.total - 100) >= 0.01 ? `<div class="warn-pond">⚠ Los % de la presentación suman <span class="mono">${round1(np.total)}%</span>; deberían sumar 100%.</div>` : '';
+  const warnCurso = Math.abs(sumaCurso - (100 - np.peso)) >= 0.01 ? `<div class="warn-pond">⚠ Estas evaluaciones suman <span class="mono">${round1(sumaCurso)}%</span>; deberían sumar <span class="mono">${round1(100 - np.peso)}%</span> de la nota final.</div>` : '';
+  return `
+    <div class="sec-block">
+      <div class="sec-head z-${zNp}">
+        <div><strong>Nota de presentación</strong><div class="sec-sub"><span class="mono">${round1(np.peso)}%</span> de la nota final${np.completa ? '' : ' · parcial'}</div></div>
+        <div class="np-val mono zc">${fmt(npVal)}</div>
+      </div>
+      <div class="reglas">${reglasPresentacion(np)}</div>
+      ${pres.length ? tablaEvals(pres, c, '% pres.') : '<p class="muted sec-vacia">Agrega las evaluaciones que forman tu nota de presentación (solemnes, controles, tareas…).</p>'}
+      ${warnPres}${agregar('presentacion', '+ Agregar evaluación a la presentación')}
+    </div>
+    <div class="sec-block">
+      <div class="sec-head"><div><strong>Examen y otras evaluaciones</strong><div class="sec-sub"><span class="mono">${round1(100 - np.peso)}%</span> de la nota final</div></div></div>
+      ${curso.length ? tablaEvals(curso, c, '% final') : '<p class="muted sec-vacia">Agrega el examen.</p>'}
+      ${warnCurso}${agregar('curso', '+ Agregar examen u otra evaluación')}
+    </div>`;
+}
+
 function viewDetalle(an) {
   if (!an.length)
     return `<div class="card empty"><div class="big">📚</div><h2>Agrega tu primer ramo</h2>
@@ -523,7 +600,6 @@ function viewDetalle(an) {
   S.activeRamoId = x.ramo.id;
   const { ramo, calc: c, evals } = x;
   const al = textoAlerta(c);
-  const pondWarn = c.pondOk ? '' : `<div class="warn-pond">⚠ Las ponderaciones suman <span class="mono">${round1(c.totalPond)}%</span>; deberían sumar 100%. El cálculo puede no reflejar tu nota real.</div>`;
   return `
     <div class="alert-strip z-${c.zona}">
       <div class="msg"><span class="ico">${al.ico}</span><span>${esc(al.txt)}</span></div>
@@ -545,16 +621,7 @@ function viewDetalle(an) {
         <div class="lbl"><span>Probabilidad de aprobación</span><strong class="mono zc">${c.prob === null ? '—' : c.prob + '%'}</strong></div>
         <div class="bar"><span style="width:${c.prob ?? 0}%"></span></div>
       </div>
-      <div class="table-wrap">
-        <table class="evals">
-          <thead><tr><th>Evaluación</th><th>Pond.</th><th style="text-align:center">Nota</th><th>Estado</th><th><span class="hidden">Borrar</span></th></tr></thead>
-          <tbody>
-          ${evals.map((e) => filaEvalDetalle(e, c)).join('')}
-          </tbody>
-        </table>
-      </div>
-      ${pondWarn}
-      <button class="btn-dashed" id="add-ev" data-act="nueva-ev">+ Agregar evaluación</button>
+      ${bloquesEvals(x)}
     </section>
     ${viewAsistencia(x)}`;
 }
@@ -878,6 +945,7 @@ function modalRamo(m) {
         <div class="field"><label for="m-horas">Horas disponibles/semana</label><input class="input mono" id="m-horas" name="horas_semana" inputmode="decimal" value="${v('horas_semana', 6)}"></div>
         <div class="field"><label for="m-aprob">Nota de aprobación</label><input class="input mono" id="m-aprob" name="nota_aprobacion" inputmode="decimal" value="${esc(Number(r.nota_aprobacion ?? 4).toFixed(1))}"></div>
       </div>
+      ${camposPresentacion(r)}
       <div class="row">
         <div class="field"><label for="m-req">% Asistencia requerida</label><input class="input mono" id="m-req" name="asist_requerida" inputmode="numeric" value="${v('asist_requerida', 75)}"></div>
         <div class="field"><label for="m-total">Total de clases</label><input class="input mono" id="m-total" name="asist_total" inputmode="numeric" value="${v('asist_total', 30)}"></div>
@@ -887,22 +955,102 @@ function modalRamo(m) {
         <div class="field"><label for="m-asis">Clases asistidas</label><input class="input mono" id="m-asis" name="asist_asistidas" inputmode="numeric" value="${v('asist_asistidas', 0)}"></div>
       </div>
       ${nuevo ? `
-        <div class="section-label">Evaluaciones</div>
-        <div class="ev-row ev-row-head"><span>Nombre</span><span>Pond. %</span><span>Cantidad</span><span>Nota</span><span>Fecha</span><span></span></div>
-        <div class="ev-rows">${[{ nombre: 'Control 1', ponderacion: 30 }, { nombre: 'Solemne', ponderacion: 30 }, { nombre: 'Examen', ponderacion: 40 }].map(filaEval).join('')}</div>
-        <button type="button" class="btn-dashed" data-act="agregar-fila">+ Agregar evaluación</button>` : ''}
+        <div class="ev-sec hidden" data-sec="presentacion">
+          <div class="section-label">Nota de presentación <span class="sec-hint">· los % suman 100% de la presentación</span></div>
+          <div class="ev-row ev-row-head"><span>Nombre</span><span>% pres.</span><span>Cantidad</span><span>Nota</span><span>Fecha</span><span></span></div>
+          <div class="ev-rows" data-sec="presentacion">${EVALS_PRESENTACION.map(filaEval).join('')}</div>
+          <button type="button" class="btn-dashed" data-act="agregar-fila" data-sec="presentacion">+ Agregar evaluación a la presentación</button>
+        </div>
+        <div class="ev-sec" data-sec="curso">
+          <div class="section-label" id="m-curso-label">Evaluaciones</div>
+          <div class="ev-row ev-row-head"><span>Nombre</span><span>Pond. %</span><span>Cantidad</span><span>Nota</span><span>Fecha</span><span></span></div>
+          <div class="ev-rows" data-sec="curso">${EVALS_SIMPLES.map(filaEval).join('')}</div>
+          <button type="button" class="btn-dashed" data-act="agregar-fila" data-sec="curso">+ Agregar evaluación</button>
+        </div>` : ''}
     </div>
     <footer>${nuevo ? '<span class="sum" id="m-sum"></span>' : ''}<button type="button" class="btn" data-act="cerrar-modal">Cancelar</button><button class="btn btn-teal">${nuevo ? 'Agregar ramo' : 'Guardar'}</button></footer>
   </form>`;
 }
 
+const EVALS_SIMPLES = [{ nombre: 'Control 1', ponderacion: 30 }, { nombre: 'Solemne', ponderacion: 30 }, { nombre: 'Examen', ponderacion: 40 }];
+const EVALS_PRESENTACION = [{ nombre: 'Solemne 1', ponderacion: 35 }, { nombre: 'Solemne 2', ponderacion: 35 }, { nombre: 'Controles', ponderacion: 30, cantidad: 4 }];
+
+function camposPresentacion(r) {
+  const tiene = E.usaPresentacion(r);
+  const nota = (v) => (v === null || v === undefined || v === '' ? '' : Number(v).toFixed(1));
+  return `<div class="np-box">
+    <div class="field" style="margin-bottom:0"><span class="label">¿Este ramo tiene nota de presentación a examen?</span>
+      <div class="seg" role="radiogroup" aria-label="Nota de presentación">
+        <label><input type="radio" name="np_tiene" value="no" ${tiene ? '' : 'checked'}><span>No</span></label>
+        <label><input type="radio" name="np_tiene" value="si" ${tiene ? 'checked' : ''}><span>Sí</span></label>
+      </div>
+      <span class="hint">Por ejemplo, si el programa dice "70% nota de presentación y 30% examen".</span></div>
+    <div class="np-campos ${tiene ? '' : 'hidden'}">
+      <div class="field"><label for="m-np-peso">La nota de presentación vale (% de la nota final)</label>
+        <input class="input mono" id="m-np-peso" name="np_peso" inputmode="decimal" value="${esc(tiene ? Number(r.np_peso) : 70)}"></div>
+      <div class="row">
+        <div class="field"><label for="m-np-min">Nota mínima para dar examen</label>
+          <input class="input mono" id="m-np-min" name="np_min_examen" inputmode="decimal" placeholder="Sin mínimo" value="${esc(nota(r.np_min_examen))}">
+          <span class="hint">Déjalo vacío si no hay mínimo.</span></div>
+        <div class="field"><label for="m-np-exim">Nota para eximirse del examen</label>
+          <input class="input mono" id="m-np-exim" name="np_eximicion" inputmode="decimal" placeholder="No hay eximición" value="${esc(nota(r.np_eximicion))}">
+          <span class="hint">Déjalo vacío si el examen es obligatorio.</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Cambia el formulario al responder "¿tiene nota de presentación?".
+function alternarPresentacion(form) {
+  const tiene = form.np_tiene.value === 'si';
+  form.querySelector('.np-campos').classList.toggle('hidden', !tiene);
+  const pres = form.querySelector('.ev-sec[data-sec=presentacion]');
+  if (pres) {
+    pres.classList.toggle('hidden', !tiene);
+    const curso = form.querySelector('.ev-rows[data-sec=curso]');
+    if (!curso.dataset.tocado) {
+      const peso = num(form.np_peso.value) || 70;
+      curso.innerHTML = (tiene ? [{ nombre: 'Examen', ponderacion: round1(100 - peso) }] : EVALS_SIMPLES).map(filaEval).join('');
+    }
+  }
+  actualizarSuma();
+}
+
 function actualizarSuma() {
+  const form = document.querySelector('form[data-form=ramo]');
   const out = document.getElementById('m-sum');
-  if (!out) return;
-  const filas = [...document.querySelectorAll('.ev-rows .ev-row')];
-  const total = filas.reduce((a, f) => a + (num(f.querySelector('[name=ev_pond]').value) || 0), 0);
-  const ok = filas.length === 0 || Math.abs(total - 100) < 0.01;
-  out.innerHTML = `Suma: <strong class="mono" style="color:var(--${ok ? 'green' : 'red'})">${round1(total)}%</strong>${ok ? '' : ' (debe ser 100%)'}`;
+  if (!form || !out) return;
+  const sumaDe = (sec) => [...form.querySelectorAll(`.ev-rows[data-sec=${sec}] .ev-row`)].reduce((a, f) => a + (num(f.querySelector('[name=ev_pond]').value) || 0), 0);
+  const filas = (sec) => form.querySelectorAll(`.ev-rows[data-sec=${sec}] .ev-row`).length;
+  const muestra = (txt, total, meta, hay) => {
+    const ok = !hay || Math.abs(total - meta) < 0.01;
+    return `${txt} <strong class="mono" style="color:var(--${ok ? 'green' : 'red'})">${round1(total)}%</strong>${ok ? '' : ` <span class="light">(debe ser ${round1(meta)}%)</span>`}`;
+  };
+  if (form.np_tiene.value !== 'si') {
+    out.innerHTML = muestra('Suma:', sumaDe('curso'), 100, filas('curso'));
+    document.getElementById('m-curso-label').textContent = 'Evaluaciones';
+    return;
+  }
+  const peso = num(form.np_peso.value) || 0;
+  document.getElementById('m-curso-label').innerHTML = `Examen y otras evaluaciones <span class="sec-hint">· suman el ${esc(round1(100 - peso))}% restante de la nota final</span>`;
+  out.innerHTML = `${muestra('Presentación:', sumaDe('presentacion'), 100, filas('presentacion'))} · ${muestra('Resto:', sumaDe('curso'), 100 - peso, filas('curso'))}`;
+}
+
+function leerPresentacion(f) {
+  if (f.np_tiene.value !== 'si') return { np_peso: null, np_min_examen: null, np_eximicion: null };
+  const peso = num(f.np_peso.value);
+  if (peso === null || Number.isNaN(peso) || peso <= 0 || peso >= 100) return 'El % de la nota de presentación debe estar entre 1 y 99.';
+  const nota = (v, nombre) => {
+    const n = num(v);
+    if (n === null) return null;
+    if (Number.isNaN(n) || n < 1 || n > 7) throw new Error(`La ${nombre} debe estar entre 1.0 y 7.0.`);
+    return round1(n);
+  };
+  try {
+    return { np_peso: round1(peso), np_min_examen: nota(f.np_min_examen.value, 'nota mínima para dar examen'), np_eximicion: nota(f.np_eximicion.value, 'nota para eximirse') };
+  } catch (err) {
+    return err.message;
+  }
 }
 
 function leerAsistencia(f, base) {
@@ -933,17 +1081,31 @@ async function guardarRamo(f) {
   if (Number.isNaN(horas) || horas < 0 || horas > 80) return errModal('Las horas por semana deben estar entre 0 y 80.');
   const aprob = num(f.nota_aprobacion.value) ?? 4;
   if (Number.isNaN(aprob) || aprob < 1 || aprob > 7) return errModal('La nota de aprobación debe estar entre 1.0 y 7.0.');
-  const ramo = leerAsistencia(f, { nombre: nombre.slice(0, 120), horas_semana: round1(horas), nota_aprobacion: round1(aprob) });
+  const npCampos = leerPresentacion(f);
+  if (typeof npCampos === 'string') return errModal(npCampos);
+  const ramo = leerAsistencia(f, { nombre: nombre.slice(0, 120), horas_semana: round1(horas), nota_aprobacion: round1(aprob), ...npCampos });
   if (typeof ramo === 'string') return errModal(ramo);
 
   if (m.ramo) {
+    const antes = S.data.ramos.find((x) => x.id === m.ramo.id);
+    const teniaNP = E.usaPresentacion(antes);
+    const pesoAnterior = Number(antes.np_peso); // se lee antes de guardar: actualizar() modifica el ramo
     cerrarModal();
-    await actualizar('ramos', m.ramo.id, ramo);
+    if (!(await actualizar('ramos', m.ramo.id, ramo))) return;
+    if (teniaNP && !ramo.np_peso) {
+      // Sin nota de presentación, sus evaluaciones vuelven a ponderar directo sobre la nota final.
+      const pres = evalsDe(m.ramo.id).filter(E.enPresentacion);
+      const total = pres.reduce((a, e) => a + Number(e.ponderacion), 0) || 100;
+      for (const e of pres) await actualizar('evaluaciones', e.id, { seccion: 'curso', ponderacion: Math.round((Number(e.ponderacion) / total) * pesoAnterior * 100) / 100 });
+    } else if (!teniaNP && ramo.np_peso && evalsDe(m.ramo.id).length) {
+      toast({ zona: 'teal', titulo: 'Ahora mueve a la presentación las evaluaciones que correspondan', detalle: 'Usa "→ Mover a la presentación" bajo cada una.', ms: 7000 });
+    }
     return;
   }
 
   const evals = [];
-  for (const fila of f.querySelectorAll('.ev-rows .ev-row')) {
+  for (const fila of f.querySelectorAll('.ev-sec:not(.hidden) .ev-rows .ev-row')) {
+    const seccion = fila.closest('.ev-rows').dataset.sec;
     const n = fila.querySelector('[name=ev_nombre]').value.trim();
     const p = num(fila.querySelector('[name=ev_pond]').value);
     const nota = num(fila.querySelector('[name=ev_nota]').value);
@@ -953,14 +1115,18 @@ async function guardarRamo(f) {
     if (!n) return errModal('Cada evaluación necesita un nombre.');
     if (p === null || Number.isNaN(p) || p < 0 || p > 100) return errModal(`La ponderación de "${n}" debe estar entre 0 y 100.`);
     if (nota !== null && (Number.isNaN(nota) || nota < 1 || nota > 7)) return errModal(`La nota de "${n}" debe estar entre 1.0 y 7.0.`);
-    evals.push(
-      cant > 1
-        ? { nombre: n.slice(0, 80), ponderacion: p, nota: null, fecha, cantidad: cant, notas: Array(cant).fill(null) }
-        : { nombre: n.slice(0, 80), ponderacion: p, nota: nota === null ? null : round1(nota), fecha },
-    );
+    const base = cant > 1
+      ? { nombre: n.slice(0, 80), ponderacion: p, nota: null, fecha, cantidad: cant, notas: Array(cant).fill(null) }
+      : { nombre: n.slice(0, 80), ponderacion: p, nota: nota === null ? null : round1(nota), fecha };
+    evals.push(seccion === 'presentacion' ? { ...base, seccion } : base);
   }
-  const suma = evals.reduce((a, e) => a + e.ponderacion, 0);
-  if (evals.length && Math.abs(suma - 100) >= 0.01) return errModal(`Las ponderaciones suman ${round1(suma)}%. Deben sumar 100%.`);
+  const suma = (pres) => evals.filter((e) => (e.seccion === 'presentacion') === pres).reduce((a, e) => a + e.ponderacion, 0);
+  const hay = (pres) => evals.some((e) => (e.seccion === 'presentacion') === pres);
+  if (ramo.np_peso) {
+    if (hay(true) && Math.abs(suma(true) - 100) >= 0.01) return errModal(`Los % de la nota de presentación suman ${round1(suma(true))}%. Deben sumar 100%.`);
+    if (hay(false) && Math.abs(suma(false) - (100 - ramo.np_peso)) >= 0.01)
+      return errModal(`El examen y las otras evaluaciones suman ${round1(suma(false))}%. Deben sumar ${round1(100 - ramo.np_peso)}% (el resto de la nota final).`);
+  } else if (evals.length && Math.abs(suma(false) - 100) >= 0.01) return errModal(`Las ponderaciones suman ${round1(suma(false))}%. Deben sumar 100%.`);
 
   const btn = f.querySelector('.btn-teal');
   btn.disabled = true;
@@ -1106,8 +1272,9 @@ function generarPDF() {
           <div>${pill(c.zona)} <span class="mono">${c.prob === null ? '—' : c.prob + '%'}</span></div>
         </div>
         <div class="bar" style="margin-top:8px"><span style="width:${c.prob ?? 0}%"></span></div>
+        ${c.np ? `<p class="muted" style="margin:8px 0 0">Nota de presentación: <span class="mono">${fmt(c.np.final ?? c.np.actual)}</span> (${round1(c.np.peso)}% de la nota final${c.np.minExamen !== null ? ` · mínimo ${fmt(c.np.minExamen)} para dar examen` : ''}${c.np.eximicion !== null ? ` · eximición con ${fmt(c.np.eximicion)}` : ''})</p>` : ''}
         <table><thead><tr><th>Evaluación</th><th>Fecha</th><th>Pond.</th><th>Nota</th></tr></thead><tbody>
-          ${evals.map((e) => `<tr><td>${esc(e.nombre)}</td><td>${esc(fechaLarga(e.fecha))}</td><td class="mono">${Number(e.ponderacion)}%</td><td class="mono">${notaPDF(e)}</td></tr>`).join('')}
+          ${evals.map((e) => `<tr><td>${esc(e.nombre)}</td><td>${esc(fechaLarga(e.fecha))}</td><td class="mono">${Number(e.ponderacion)}%${c.np && E.enPresentacion(e) ? ' pres.' : ''}</td><td class="mono">${notaPDF(e)}</td></tr>`).join('')}
         </tbody></table>
         <div class="rep-need">${esc(necesita(c))}</div>
       </div>`).join('') || '<p>Sin ramos en el semestre activo.</p>'}
@@ -1187,20 +1354,29 @@ const acciones = {
       },
     });
   },
-  'agregar-fila'() {
-    document.querySelector('.ev-rows').insertAdjacentHTML('beforeend', filaEval());
-    document.querySelector('.ev-rows .ev-row:last-child input')?.focus();
+  'agregar-fila'(el) {
+    const lista = document.querySelector(`.ev-rows[data-sec=${el.dataset.sec || 'curso'}]`);
+    lista.dataset.tocado = '1';
+    lista.insertAdjacentHTML('beforeend', filaEval());
+    lista.querySelector('.ev-row:last-child input')?.focus();
     actualizarSuma();
   },
   'quitar-fila'(el) {
+    el.closest('.ev-rows').dataset.tocado = '1';
     el.closest('.ev-row').remove();
     actualizarSuma();
   },
-  async 'nueva-ev'() {
+  async 'nueva-ev'(el) {
+    const ramo = S.data.ramos.find((r) => r.id === S.activeRamoId);
+    const np = E.usaPresentacion(ramo);
+    const pres = np && el.dataset.sec === 'presentacion';
     const evals = evalsDe(S.activeRamoId);
-    const usado = evals.reduce((a, e) => a + (Number(e.ponderacion) || 0), 0);
+    const delGrupo = np ? evals.filter((e) => E.enPresentacion(e) === pres) : evals;
+    const usado = delGrupo.reduce((a, e) => a + (Number(e.ponderacion) || 0), 0);
+    const meta = !np || pres ? 100 : 100 - Number(ramo.np_peso);
+    const fila = { ramo_id: S.activeRamoId, nombre: `Evaluación ${evals.length + 1}`, ponderacion: Math.max(0, round1(meta - usado)), nota: null, fecha: null };
     try {
-      const e = await S.store.insert('evaluaciones', { ramo_id: S.activeRamoId, nombre: `Evaluación ${evals.length + 1}`, ponderacion: Math.max(0, round1(100 - usado)), nota: null, fecha: null });
+      const e = await S.store.insert('evaluaciones', pres ? { ...fila, seccion: 'presentacion' } : fila);
       S.data.evaluaciones.push(e);
       render();
       const inp = document.getElementById(`ev-${e.id}-nombre`);
@@ -1209,6 +1385,16 @@ const acciones = {
     } catch (err) {
       toastError(err);
     }
+  },
+  mover(el) {
+    const e = S.data.evaluaciones.find((x) => x.id === el.dataset.id);
+    const ramo = S.data.ramos.find((r) => r.id === e.ramo_id);
+    const peso = Number(ramo.np_peso);
+    const pond = Number(e.ponderacion) || 0;
+    const aPres = !E.enPresentacion(e);
+    // 24.5% de la nota final con NP de 70% equivale a 35% de la presentación, y viceversa.
+    const nueva = aPres ? (pond / peso) * 100 : (pond * peso) / 100;
+    actualizar('evaluaciones', e.id, { seccion: aPres ? 'presentacion' : 'curso', ponderacion: Math.round(Math.min(100, nueva) * 100) / 100 });
   },
   dividir(el) {
     const e = S.data.evaluaciones.find((x) => x.id === el.dataset.id);
@@ -1401,6 +1587,7 @@ document.addEventListener('change', (ev) => {
   }
   if (el.dataset.change === 'ev') cambiarEval(el);
   if (el.dataset.change === 'sub') cambiarSubNota(el);
+  if (el.name === 'np_tiene') alternarPresentacion(el.form);
   if (el.name === 'ev_cant') {
     const nota = el.closest('.ev-row').querySelector('[name=ev_nota]');
     nota.disabled = Number(el.value) > 1;
@@ -1410,7 +1597,14 @@ document.addEventListener('change', (ev) => {
 });
 
 document.addEventListener('input', (ev) => {
-  if (ev.target.name === 'ev_pond') actualizarSuma();
+  const t = ev.target;
+  if (t.closest?.('.ev-rows')) t.closest('.ev-rows').dataset.tocado = '1';
+  if (t.name === 'ev_pond') actualizarSuma();
+  if (t.name === 'np_peso') {
+    const curso = t.form.querySelector('.ev-rows[data-sec=curso]');
+    if (curso && !curso.dataset.tocado && t.form.np_tiene.value === 'si') alternarPresentacion(t.form);
+    else actualizarSuma();
+  }
 });
 
 function cambiarEval(el) {

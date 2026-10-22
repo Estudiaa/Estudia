@@ -76,14 +76,14 @@ export function semillaDemo(hoy = new Date()) {
     { id: 'r1', nombre: 'Cálculo Diferencial', horas_semana: 10, asist_requerida: 75, asist_total: 30, asist_realizadas: 25, asist_asistidas: 24 },
     { id: 'r2', nombre: 'Física II', horas_semana: 8, asist_requerida: 75, asist_total: 30, asist_realizadas: 22, asist_asistidas: 18 },
     { id: 'r3', nombre: 'Termodinámica', horas_semana: 6, asist_requerida: 80, asist_total: 28, asist_realizadas: 20, asist_asistidas: 16 },
-    { id: 'r4', nombre: 'Programación', horas_semana: 7, asist_requerida: 75, asist_total: 25, asist_realizadas: 23, asist_asistidas: 23 },
+    { id: 'r4', nombre: 'Programación', horas_semana: 7, asist_requerida: 75, asist_total: 25, asist_realizadas: 23, asist_asistidas: 23, np_peso: 70, np_min_examen: 3.5 },
   ].map((r) => ({ ...r, user_id: 'demo', semestre_id: semId, nota_aprobacion: 4.0, nota_final: null }));
   const e = (id, ramo_id, nombre, ponderacion, nota, fecha) => ({ id, user_id: 'demo', ramo_id, nombre, ponderacion, nota, fecha });
   const evaluaciones = [
     e('e1', 'r1', 'Control 1', 30, 6.0, hace(40)), e('e2', 'r1', 'Control 2', 30, 5.8, hace(12)), e('e3', 'r1', 'Examen', 40, null, en(21)),
     { ...e('e4', 'r2', 'Controles', 25, null, hace(6)), cantidad: 4, notas: [3.5, 4.2, null, null] }, e('e5', 'r2', 'Solemne', 35, 4.1, hace(2)), e('e6', 'r2', 'Examen', 40, null, en(30)),
     e('e7', 'r3', 'Control 1', 20, 2.0, hace(30)), e('e8', 'r3', 'Solemne 1', 30, 2.5, hace(9)), e('e9', 'r3', 'Examen', 50, null, en(14)),
-    e('e10', 'r4', 'Proyecto 1', 40, 6.5, hace(25)), e('e11', 'r4', 'Proyecto 2', 30, null, en(5)), e('e12', 'r4', 'Examen', 30, null, en(25)),
+    { ...e('e10', 'r4', 'Proyecto 1', 50, 6.5, hace(25)), seccion: 'presentacion' }, { ...e('e11', 'r4', 'Proyecto 2', 50, null, en(5)), seccion: 'presentacion' }, e('e12', 'r4', 'Examen', 30, null, en(25)),
   ];
   // Un semestre cerrado de ejemplo para que el Historial no se vea vacío.
   const prev = sem.numero === 1 ? { anio: sem.anio - 1, numero: 2 } : { anio: sem.anio, numero: 1 };
