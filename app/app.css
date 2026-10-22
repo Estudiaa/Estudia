@@ -355,7 +355,8 @@ details.sem[open] summary::after { transform: rotate(90deg); }
 .modal footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; align-items: center; }
 .modal footer .sum { margin-right: auto; font-size: 13px; }
 .ev-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.ev-row { display: grid; grid-template-columns: minmax(0, 1.6fr) 70px 70px minmax(0, 1.2fr) 32px; gap: 6px; align-items: center; }
+.ev-row { display: grid; grid-template-columns: minmax(0, 1.5fr) 64px 108px 64px minmax(0, 1.1fr) 32px; gap: 6px; align-items: center; }
+.ev-row .input:disabled { background: var(--bg); }
 .ev-row .input { padding: 8px; font-size: 14px; min-height: 38px; }
 .ev-row-head { font-size: 12px; color: var(--muted); font-weight: 500; }
 .section-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; margin: 8px 0 10px; }
@@ -397,8 +398,22 @@ details.sem[open] summary::after { transform: rotate(90deg); }
   .cal-day { min-height: 56px; padding: 3px; }
   .chip { font-size: 0; padding: 0; height: 6px; border-left: 0; background: var(--z); }
   .chip-more { font-size: 10px; padding: 0; }
-  .ev-row { grid-template-columns: minmax(0, 1fr) 62px 62px 32px; }
-  .ev-row .fecha { grid-column: 1 / 4; }
+  .ev-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr) 32px;
+    grid-template-areas: "nom nom nom x" "pond cant nota ." "fecha fecha fecha .";
+    padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  }
+  .ev-row > :nth-child(1) { grid-area: nom; }
+  .ev-row > :nth-child(2) { grid-area: pond; }
+  .ev-row > :nth-child(3) { grid-area: cant; }
+  .ev-row > :nth-child(4) { grid-area: nota; }
+  .ev-row > :nth-child(5) { grid-area: fecha; }
+  .ev-row > :nth-child(6) { grid-area: x; }
+  table.evals tr.grp { border-bottom: 0; padding-bottom: 4px; }
+  table.evals tr.sub-row td { grid-column: 1 / -1; }
+  table.evals tr.sub-row { padding-top: 0; }
+  .cell-name { flex-wrap: wrap; }
+  .split-btn { flex-basis: 100%; }
   .ev-row-head { display: none; }
   .modal-bg { padding: 0; place-items: end stretch; }
   .modal { max-height: 92vh; border-radius: var(--r-card) var(--r-card) 0 0; }
@@ -443,3 +458,20 @@ textarea.input { min-height: 120px; resize: vertical; line-height: 1.5; }
 .seg input:checked + span { background: var(--teal-lt); border-color: var(--teal); color: var(--green-tx); }
 .seg input:focus-visible + span { outline: 2px solid var(--teal); outline-offset: 2px; }
 .seg input:disabled + span { opacity: .5; cursor: not-allowed; }
+
+/* ---------- Evaluaciones con varias notas ---------- */
+.split-btn { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); text-decoration: none; padding: 2px 7px; align-self: flex-start; }
+.split-btn:hover { color: var(--teal); text-decoration: underline; }
+.nota-prom { font-size: 17px; font-weight: 500; }
+table.evals tr.grp td { border-bottom: 0; padding-bottom: 2px; }
+table.evals tr.sub-row td { padding-top: 0; }
+.subnotas { background: var(--bg); border-radius: var(--r-ctl); padding: 10px 12px; }
+.sub-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.cant { display: flex; gap: 4px; }
+.cant-btn { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-size: 16px; line-height: 1; }
+.cant-btn:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
+.cant-btn:disabled { opacity: .4; cursor: not-allowed; }
+.subs { display: flex; flex-wrap: wrap; gap: 8px; }
+.sub { display: flex; align-items: center; gap: 4px; }
+.sub span { font: 500 11px var(--mono); color: var(--light); }
+.sub .cell-input.nota { width: 64px; background: var(--surface); }

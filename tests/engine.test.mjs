@@ -129,3 +129,29 @@ test('Alertas se generan con datos reales', () => {
   assert.ok(alertas.some((a) => a.titulo.includes('Cálculo va muy bien')));
   assert.ok(alertas.some((a) => a.detalle.startsWith('Mañana')));
 });
+
+test('Evaluación agrupada: promedio de varias notas', async () => {
+  const { notaEval, evalCompleta, subNotas } = await import('../app/engine.js');
+  // Controles 20% (4 notas, 2 rendidas), Solemne 30% 5.0, Examen 50% pendiente.
+  const controles = { id: 'g', nombre: 'Controles', ponderacion: 20, cantidad: 4, notas: [6.0, 4.0] };
+  assert.deepEqual(subNotas(controles), [6.0, 4.0, null, null]);
+  assert.equal(notaEval(controles), 5.0);
+  assert.equal(evalCompleta(controles), false);
+  const c = calcRamo({}, [controles, ev(30, 5.0), ev(50)]);
+  assert.equal(c.nEvals, 6);
+  assert.equal(c.nRendidas, 3);
+  // Rendido: 5·6 + 5·4 + 30·5 = 200. Pendiente: 5 + 5 + 50 = 60. (400 − 200) / 60 = 3.33
+  assert.equal(c.notaMinMostrar, 3.4);
+  assert.equal(fmtNota(c.notaActual), '5.0');
+  assert.equal(c.pondOk, true);
+
+  // Grupo completo equivale a una sola evaluación con el promedio.
+  const completo = calcRamo({}, [{ ponderacion: 20, cantidad: 4, notas: [6, 4, 5, 5] }, ev(80, 5.0)]);
+  const simple = calcRamo({}, [ev(20, 5.0), ev(80, 5.0)]);
+  assert.equal(completo.notaActual, simple.notaActual);
+  assert.equal(completo.finalizado, true);
+
+  // Sin cantidad (datos antiguos) se comporta como antes.
+  assert.equal(notaEval({ nota: 4.5 }), 4.5);
+  assert.equal(evalCompleta({ nota: null }), false);
+});

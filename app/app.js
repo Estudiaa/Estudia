@@ -470,12 +470,48 @@ function textoAlerta(c) {
 }
 
 function estadoEval(e, c) {
-  const tiene = e.nota !== null && e.nota !== undefined && e.nota !== '';
-  if (tiene) return Number(e.nota) >= c.aprob ? pill('verde', 'Aprobado') : pill('rojo', 'Bajo mínimo');
+  if (E.evalCompleta(e)) return E.notaEval(e) >= c.aprob - 1e-9 ? pill('verde', 'Aprobado') : pill('rojo', 'Bajo mínimo');
   if (!(Number(e.ponderacion) > 0)) return pill('neutral', 'Sin ponderación');
   if (c.estadoMin === 'asegurado') return pill('verde', 'Asegurado');
   if (c.estadoMin === 'imposible') return pill('rojo', 'No alcanza');
   return pill(c.zona, `Necesitas ${fmt(c.notaMinMostrar)}`);
+}
+
+function filaEvalDetalle(e, c) {
+  const id = esc(e.id);
+  const grupo = E.esGrupo(e);
+  const prom = E.notaEval(e);
+  const notaCell = grupo
+    ? `<div class="nota-prom mono">${fmt(prom)}</div><small class="light">promedio</small>`
+    : `<input class="cell-input nota" inputmode="decimal" id="ev-${id}-nota" data-change="ev" data-id="${id}" data-field="nota" value="${prom === null ? '' : esc(prom.toFixed(1))}" placeholder="Pend." aria-label="Nota de ${esc(e.nombre)}">`;
+  const fila = `
+    <tr class="${grupo ? 'grp' : ''}">
+      <td><div class="cell-name">
+        <input class="cell-input" id="ev-${id}-nombre" data-change="ev" data-id="${id}" data-field="nombre" value="${esc(e.nombre)}" maxlength="80" aria-label="Nombre de la evaluación">
+        <input class="cell-input date" type="date" id="ev-${id}-fecha" data-change="ev" data-id="${id}" data-field="fecha" value="${esc(e.fecha ?? '')}" aria-label="Fecha de ${esc(e.nombre)}">
+        ${grupo ? '' : `<button class="linkbtn split-btn" id="split-${id}" data-act="dividir" data-id="${id}">÷ Es un promedio de varias notas</button>`}
+      </div></td>
+      <td><input class="cell-input num" inputmode="decimal" id="ev-${id}-ponderacion" data-change="ev" data-id="${id}" data-field="ponderacion" value="${esc(Number(e.ponderacion))}" aria-label="Ponderación en %"><span class="light">%</span></td>
+      <td style="text-align:center">${notaCell}</td>
+      <td>${estadoEval(e, c)}</td>
+      <td><button class="x-btn" id="del-${id}" data-act="borrar-ev" data-id="${id}" aria-label="Borrar ${esc(e.nombre)}">✕</button></td>
+    </tr>`;
+  if (!grupo) return fila;
+  const notas = E.subNotas(e);
+  const cada = Math.round((Number(e.ponderacion) / notas.length) * 100) / 100;
+  return fila + `
+    <tr class="sub-row"><td colspan="5"><div class="subnotas">
+      <div class="sub-head">
+        <span>${notas.length} notas · cada una vale <span class="mono">${cada}%</span></span>
+        <span class="cant">
+          <button class="cant-btn" id="cant-menos-${id}" data-act="cantidad" data-id="${id}" data-d="-1" aria-label="Quitar una nota">−</button>
+          <button class="cant-btn" id="cant-mas-${id}" data-act="cantidad" data-id="${id}" data-d="1" aria-label="Agregar una nota" ${notas.length >= E.MAX_SUBNOTAS ? 'disabled' : ''}>+</button>
+        </span>
+      </div>
+      <div class="subs">
+        ${notas.map((n, i) => `<label class="sub"><span>${i + 1}</span><input class="cell-input nota" inputmode="decimal" id="ev-${id}-n${i}" data-change="sub" data-id="${id}" data-idx="${i}" value="${n === null ? '' : n.toFixed(1)}" placeholder="Pend." aria-label="${esc(e.nombre)}, nota ${i + 1}"></label>`).join('')}
+      </div>
+    </div></td></tr>`;
 }
 
 function viewDetalle(an) {
@@ -513,17 +549,7 @@ function viewDetalle(an) {
         <table class="evals">
           <thead><tr><th>Evaluación</th><th>Pond.</th><th style="text-align:center">Nota</th><th>Estado</th><th><span class="hidden">Borrar</span></th></tr></thead>
           <tbody>
-          ${evals.map((e) => `
-            <tr>
-              <td><div class="cell-name">
-                <input class="cell-input" id="ev-${esc(e.id)}-nombre" data-change="ev" data-id="${esc(e.id)}" data-field="nombre" value="${esc(e.nombre)}" maxlength="80" aria-label="Nombre de la evaluación">
-                <input class="cell-input date" type="date" id="ev-${esc(e.id)}-fecha" data-change="ev" data-id="${esc(e.id)}" data-field="fecha" value="${esc(e.fecha ?? '')}" aria-label="Fecha de ${esc(e.nombre)}">
-              </div></td>
-              <td><input class="cell-input num" inputmode="decimal" id="ev-${esc(e.id)}-ponderacion" data-change="ev" data-id="${esc(e.id)}" data-field="ponderacion" value="${esc(Number(e.ponderacion))}" aria-label="Ponderación en %"><span class="light">%</span></td>
-              <td style="text-align:center"><input class="cell-input nota" inputmode="decimal" id="ev-${esc(e.id)}-nota" data-change="ev" data-id="${esc(e.id)}" data-field="nota" value="${e.nota === null || e.nota === undefined ? '' : esc(Number(e.nota).toFixed(1))}" placeholder="Pend." aria-label="Nota de ${esc(e.nombre)}"></td>
-              <td>${estadoEval(e, c)}</td>
-              <td><button class="x-btn" id="del-${esc(e.id)}" data-act="borrar-ev" data-id="${esc(e.id)}" aria-label="Borrar ${esc(e.nombre)}">✕</button></td>
-            </tr>`).join('')}
+          ${evals.map((e) => filaEvalDetalle(e, c)).join('')}
           </tbody>
         </table>
       </div>
@@ -830,7 +856,10 @@ function filaEval(e = {}) {
   return `<div class="ev-row">
     <input class="input" name="ev_nombre" placeholder="Nombre" maxlength="80" value="${esc(e.nombre ?? '')}" aria-label="Nombre de la evaluación">
     <input class="input mono" name="ev_pond" inputmode="decimal" placeholder="%" value="${esc(e.ponderacion ?? '')}" aria-label="Ponderación %">
-    <input class="input mono" name="ev_nota" inputmode="decimal" placeholder="Nota" value="${esc(e.nota ?? '')}" aria-label="Nota (opcional)">
+    <select class="input f-cant" name="ev_cant" aria-label="Cantidad de notas que se promedian">
+      ${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}" ${Number(e.cantidad || 1) === i + 1 ? 'selected' : ''}>${i === 0 ? '1 nota' : `${i + 1} notas`}</option>`).join('')}
+    </select>
+    <input class="input mono f-nota" name="ev_nota" inputmode="decimal" placeholder="Nota" value="${esc(e.nota ?? '')}" aria-label="Nota (opcional)">
     <input class="input fecha" name="ev_fecha" type="date" value="${esc(e.fecha ?? '')}" aria-label="Fecha (opcional)">
     <button type="button" class="x-btn" data-act="quitar-fila" aria-label="Quitar evaluación">✕</button>
   </div>`;
@@ -859,7 +888,7 @@ function modalRamo(m) {
       </div>
       ${nuevo ? `
         <div class="section-label">Evaluaciones</div>
-        <div class="ev-row ev-row-head"><span>Nombre</span><span>Pond. %</span><span>Nota</span><span>Fecha</span><span></span></div>
+        <div class="ev-row ev-row-head"><span>Nombre</span><span>Pond. %</span><span>Cantidad</span><span>Nota</span><span>Fecha</span><span></span></div>
         <div class="ev-rows">${[{ nombre: 'Control 1', ponderacion: 30 }, { nombre: 'Solemne', ponderacion: 30 }, { nombre: 'Examen', ponderacion: 40 }].map(filaEval).join('')}</div>
         <button type="button" class="btn-dashed" data-act="agregar-fila">+ Agregar evaluación</button>` : ''}
     </div>
@@ -919,11 +948,16 @@ async function guardarRamo(f) {
     const p = num(fila.querySelector('[name=ev_pond]').value);
     const nota = num(fila.querySelector('[name=ev_nota]').value);
     const fecha = fila.querySelector('[name=ev_fecha]').value || null;
+    const cant = Number(fila.querySelector('[name=ev_cant]').value) || 1;
     if (!n && p === null && nota === null && !fecha) continue;
     if (!n) return errModal('Cada evaluación necesita un nombre.');
     if (p === null || Number.isNaN(p) || p < 0 || p > 100) return errModal(`La ponderación de "${n}" debe estar entre 0 y 100.`);
     if (nota !== null && (Number.isNaN(nota) || nota < 1 || nota > 7)) return errModal(`La nota de "${n}" debe estar entre 1.0 y 7.0.`);
-    evals.push({ nombre: n.slice(0, 80), ponderacion: p, nota: nota === null ? null : round1(nota), fecha });
+    evals.push(
+      cant > 1
+        ? { nombre: n.slice(0, 80), ponderacion: p, nota: null, fecha, cantidad: cant, notas: Array(cant).fill(null) }
+        : { nombre: n.slice(0, 80), ponderacion: p, nota: nota === null ? null : round1(nota), fecha },
+    );
   }
   const suma = evals.reduce((a, e) => a + e.ponderacion, 0);
   if (evals.length && Math.abs(suma - 100) >= 0.01) return errModal(`Las ponderaciones suman ${round1(suma)}%. Deben sumar 100%.`);
@@ -980,7 +1014,7 @@ function modalDia(m) {
     <header><h2 id="m-title">${d.getDate()} de ${MESES[d.getMonth()].toLowerCase()}</h2><button type="button" class="x-btn" data-act="cerrar-modal" aria-label="Cerrar">✕</button></header>
     <div class="body">
       ${items.map((x) => `<div class="prox" data-act="ramo" data-id="${esc(x.ramo.id)}" role="button" tabindex="0">
-        <div class="info"><strong>${esc(x.e.nombre)}</strong><span>${esc(x.ramo.nombre)} · <span class="mono">${Number(x.e.ponderacion)}%</span> de la nota${x.e.nota !== null && x.e.nota !== undefined ? ` · nota <span class="mono">${fmt(Number(x.e.nota))}</span>` : ''}</span></div>
+        <div class="info"><strong>${esc(x.e.nombre)}</strong><span>${esc(x.ramo.nombre)} · <span class="mono">${Number(x.e.ponderacion)}%</span> de la nota${E.notaEval(x.e) !== null ? ` · ${E.esGrupo(x.e) ? 'promedio' : 'nota'} <span class="mono">${fmt(E.notaEval(x.e))}</span>` : ''}</span></div>
         ${pill(x.zona)}
       </div>`).join('')}
     </div>
@@ -1034,6 +1068,13 @@ async function enviarComentario(f) {
 
 // ---------- PDF ----------
 
+function notaPDF(e) {
+  if (!E.esGrupo(e)) return E.notaEval(e) === null ? 'Pend.' : fmt(E.notaEval(e));
+  const notas = E.subNotas(e);
+  const hechas = notas.filter((n) => n !== null);
+  return `${notas.map((n) => (n === null ? '—' : fmt(n))).join(' · ')}${hechas.length ? ` (prom. ${fmt(E.notaEval(e))})` : ''}`;
+}
+
 function generarPDF() {
   const an = analisis();
   const p = S.data.profile;
@@ -1066,7 +1107,7 @@ function generarPDF() {
         </div>
         <div class="bar" style="margin-top:8px"><span style="width:${c.prob ?? 0}%"></span></div>
         <table><thead><tr><th>Evaluación</th><th>Fecha</th><th>Pond.</th><th>Nota</th></tr></thead><tbody>
-          ${evals.map((e) => `<tr><td>${esc(e.nombre)}</td><td>${esc(fechaLarga(e.fecha))}</td><td class="mono">${Number(e.ponderacion)}%</td><td class="mono">${e.nota === null || e.nota === undefined ? 'Pend.' : fmt(Number(e.nota))}</td></tr>`).join('')}
+          ${evals.map((e) => `<tr><td>${esc(e.nombre)}</td><td>${esc(fechaLarga(e.fecha))}</td><td class="mono">${Number(e.ponderacion)}%</td><td class="mono">${notaPDF(e)}</td></tr>`).join('')}
         </tbody></table>
         <div class="rep-need">${esc(necesita(c))}</div>
       </div>`).join('') || '<p>Sin ramos en el semestre activo.</p>'}
@@ -1168,6 +1209,21 @@ const acciones = {
     } catch (err) {
       toastError(err);
     }
+  },
+  dividir(el) {
+    const e = S.data.evaluaciones.find((x) => x.id === el.dataset.id);
+    const nota = E.notaEval(e);
+    actualizar('evaluaciones', e.id, { cantidad: 2, notas: [nota, null], nota: null });
+  },
+  cantidad(el) {
+    const e = S.data.evaluaciones.find((x) => x.id === el.dataset.id);
+    const notas = E.subNotas(e);
+    const n = notas.length + Number(el.dataset.d);
+    if (n > E.MAX_SUBNOTAS) return;
+    if (n < notas.length && notas.at(-1) !== null)
+      return toast({ zona: 'amarillo', titulo: `Primero borra la nota ${notas.length}`, detalle: 'Así no pierdes una nota por error.' });
+    if (n <= 1) return actualizar('evaluaciones', e.id, { cantidad: 1, notas: null, nota: notas[0] });
+    actualizar('evaluaciones', e.id, { cantidad: n, notas: n > notas.length ? [...notas, null] : notas.slice(0, n) });
   },
   async 'borrar-ev'(el) {
     const id = el.dataset.id;
@@ -1344,6 +1400,13 @@ document.addEventListener('change', (ev) => {
     return;
   }
   if (el.dataset.change === 'ev') cambiarEval(el);
+  if (el.dataset.change === 'sub') cambiarSubNota(el);
+  if (el.name === 'ev_cant') {
+    const nota = el.closest('.ev-row').querySelector('[name=ev_nota]');
+    nota.disabled = Number(el.value) > 1;
+    nota.placeholder = nota.disabled ? 'Después' : 'Nota';
+    if (nota.disabled) nota.value = '';
+  }
 });
 
 document.addEventListener('input', (ev) => {
@@ -1379,6 +1442,25 @@ function cambiarEval(el) {
   const actual = campo === 'nota' || campo === 'ponderacion' ? (e[campo] === null || e[campo] === undefined ? null : Number(e[campo])) : e[campo] ?? null;
   if (valor === actual) return;
   actualizar('evaluaciones', e.id, { [campo]: valor });
+}
+
+function cambiarSubNota(el) {
+  const e = S.data.evaluaciones.find((x) => x.id === el.dataset.id);
+  if (!e) return;
+  const idx = Number(el.dataset.idx);
+  const notas = E.subNotas(e);
+  const n = num(el.value);
+  if (n !== null && (Number.isNaN(n) || n < 1 || n > 7)) {
+    toast({ zona: 'rojo', titulo: 'La nota debe estar entre 1.0 y 7.0.' });
+    el.classList.add('invalid');
+    el.value = notas[idx] === null ? '' : notas[idx].toFixed(1);
+    setTimeout(() => el.classList.remove('invalid'), 1500);
+    return;
+  }
+  const valor = n === null ? null : round1(n);
+  if (valor === notas[idx]) return;
+  notas[idx] = valor;
+  actualizar('evaluaciones', e.id, { notas });
 }
 
 // ---------- Inicio ----------

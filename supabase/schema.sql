@@ -57,6 +57,12 @@ create table if not exists public.evaluaciones (
   fecha       date,
   created_at  timestamptz not null default now()
 );
+
+-- Evaluaciones que son el promedio de varias notas (ej: "Controles", 20%, 4 notas).
+-- cantidad = número de notas; notas = cada nota (null = pendiente). Con cantidad 1 se usa la columna nota.
+alter table public.evaluaciones add column if not exists cantidad int not null default 1 check (cantidad between 1 and 20);
+alter table public.evaluaciones add column if not exists notas numeric(2,1)[] check (
+  notas is null or (cardinality(notas) <= 20 and 1.0 <= all(notas) and 7.0 >= all(notas)));
 -- La suma de ponderaciones = 100 se valida en la app (al crear un ramo es obligatoria
 -- y en el detalle se avisa si no cuadra), porque se edita una evaluación a la vez.
 

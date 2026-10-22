@@ -8,12 +8,43 @@ const EPS = 1e-9;
 
 const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 const tieneNota = (e) => e.nota !== null && e.nota !== undefined && e.nota !== '';
+export const MAX_SUBNOTAS = 20;
+
+// ---------- Evaluaciones agrupadas ----------
+// Una evaluación puede ser el promedio de varias notas (ej: "Controles", 20%, 4 notas).
+// Cada nota vale ponderacion / cantidad y se calcula como una evaluación más.
+
+export const esGrupo = (e) => Number(e.cantidad) > 1;
+
+export function subNotas(e) {
+  const n = Math.min(MAX_SUBNOTAS, Math.max(1, Math.round(Number(e.cantidad) || 1)));
+  const notas = Array.isArray(e.notas) ? e.notas : [];
+  return Array.from({ length: n }, (_, i) => {
+    const v = notas[i];
+    return v === null || v === undefined || v === '' ? null : Number(v);
+  });
+}
+
+// Nota que representa a la evaluación: la propia o el promedio de las notas ingresadas.
+export function notaEval(e) {
+  if (!esGrupo(e)) return tieneNota(e) ? Number(e.nota) : null;
+  const ingresadas = subNotas(e).filter((n) => n !== null);
+  return ingresadas.length ? sum(ingresadas) / ingresadas.length : null;
+}
+
+export const evalCompleta = (e) => (esGrupo(e) ? subNotas(e).every((n) => n !== null) : tieneNota(e));
+
+export function expandirEvals(evaluaciones) {
+  return evaluaciones.flatMap((e) =>
+    esGrupo(e) ? subNotas(e).map((nota) => ({ ...e, ponderacion: Number(e.ponderacion) / subNotas(e).length, nota })) : [e],
+  );
+}
 
 // ---------- Ramo ----------
 
 export function calcRamo(ramo, evaluaciones) {
   const aprob = Number(ramo.nota_aprobacion) || APROBACION_DEFAULT;
-  const evals = evaluaciones.filter((e) => Number(e.ponderacion) > 0);
+  const evals = expandirEvals(evaluaciones).filter((e) => Number(e.ponderacion) > 0);
   const totalPond = sum(evals.map((e) => Number(e.ponderacion)));
   const notadas = evals.filter(tieneNota);
   const pendientes = evals.filter((e) => !tieneNota(e));
@@ -252,7 +283,7 @@ export function generarAlertas(ramos, hoy = new Date()) {
   }
   for (const { ramo, calc, evals } of ramos) {
     for (const e of evals) {
-      if (tieneNota(e) || !e.fecha) continue;
+      if (evalCompleta(e) || !e.fecha) continue;
       const n = diasRestantes(e.fecha, hoy);
       if (n === null || n < 0 || n > 3) continue;
       alertas.push({ id: `e:${e.id}:${e.fecha}:${n}`, zona: calc.zona === 'neutral' ? 'amarillo' : calc.zona, prioridad: 4, ramoId: ramo.id, titulo: `📅 ${e.nombre} de ${ramo.nombre}`, detalle: `${etiquetaDias(n)} · ${Number(e.ponderacion)}% de la nota.` });
