@@ -120,6 +120,26 @@ create policy "evaluaciones: borrar"     on public.evaluaciones for delete to au
 -- Los visitantes sin sesión no tienen acceso a nada.
 revoke all on public.profiles, public.semestres, public.ramos, public.evaluaciones from anon;
 
+-- ---------- Comentarios de la beta ----------
+-- Los estudiantes solo pueden ENVIAR comentarios propios; no pueden leer ni editar
+-- ninguno. El dueño los lee desde el Table Editor del panel de Supabase.
+
+create table if not exists public.comentarios (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  tipo       text not null default 'otro' check (tipo in ('idea', 'error', 'otro')),
+  mensaje    text not null check (char_length(mensaje) between 3 and 2000),
+  pantalla   text check (char_length(pantalla) <= 40),
+  user_agent text check (char_length(user_agent) <= 300),
+  created_at timestamptz not null default now()
+);
+create index if not exists comentarios_created_idx on public.comentarios (created_at desc);
+
+alter table public.comentarios enable row level security;
+drop policy if exists "comentarios: crear propio" on public.comentarios;
+create policy "comentarios: crear propio" on public.comentarios for insert to authenticated with check (user_id = (select auth.uid()));
+revoke all on public.comentarios from anon;
+
 -- ---------- Perfil automático al registrarse ----------
 
 create or replace function public.handle_new_user()

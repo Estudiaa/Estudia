@@ -414,6 +414,7 @@ function viewApp() {
   <header class="topbar">
     <a class="logo" href="/" aria-label="Estudia! inicio">Estudia<b>!</b></a>
     <div class="topbar-right">
+      <button class="icon-btn" data-act="comentarios" aria-label="Enviar comentarios" title="Enviar comentarios">💬</button>
       <button class="icon-btn" data-act="toggle-alertas" aria-label="Alertas académicas${noLeidas ? `, ${noLeidas} sin leer` : ''}">🔔${noLeidas ? `<span class="badge">${noLeidas}</span>` : ''}</button>
       <button class="user-btn" data-act="tab" data-tab="perfil" aria-label="Ver perfil"><span class="avatar">${esc(iniciales(p.nombre, S.data.email))}</span><span class="nm">${esc(nombre)}</span></button>
       <button class="btn btn-sm btn-out" data-act="logout" aria-label="Cerrar sesión">↪<span class="lbl"> ${S.store.demo ? 'Salir de la demo' : 'Cerrar sesión'}</span></button>
@@ -809,6 +810,7 @@ function renderModal() {
   else if (m.tipo === 'asist') inner = modalAsist(m);
   else if (m.tipo === 'confirm') inner = modalConfirm(m);
   else if (m.tipo === 'dia') inner = modalDia(m);
+  else if (m.tipo === 'comentario') inner = modalComentario();
   if ($modal.dataset.k === m.k) return; // no redibujar un modal abierto (conserva lo escrito)
   $modal.dataset.k = m.k;
   $modal.innerHTML = `<div class="modal-bg" data-act="cerrar-modal-bg">${inner}</div>`;
@@ -983,6 +985,51 @@ function modalDia(m) {
       </div>`).join('')}
     </div>
   </div>`;
+}
+
+function modalComentario() {
+  const demo = S.store.demo;
+  return `<form class="modal sm" data-form="comentario" novalidate role="dialog" aria-modal="true" aria-labelledby="m-title">
+    <header><h2 id="m-title">Enviar comentarios</h2><button type="button" class="x-btn" data-act="cerrar-modal" aria-label="Cerrar">✕</button></header>
+    <div class="body">
+      <div id="m-err"></div>
+      ${demo ? '<div class="info-box">Estás en la demo: para enviar comentarios necesitas crear una cuenta gratis.</div>' : ''}
+      <p class="muted" style="margin-top:0">Estudia! está en beta. ¿Qué te gustaría mejorar, qué falló o qué te gustó? Lo leemos todo.</p>
+      <div class="field"><span class="label">Tipo</span>
+        <div class="seg" role="radiogroup" aria-label="Tipo de comentario">
+          <label><input type="radio" name="tipo" value="idea" checked ${demo ? 'disabled' : ''}><span>💡 Idea</span></label>
+          <label><input type="radio" name="tipo" value="error" ${demo ? 'disabled' : ''}><span>🐞 Error</span></label>
+          <label><input type="radio" name="tipo" value="otro" ${demo ? 'disabled' : ''}><span>💬 Otro</span></label>
+        </div></div>
+      <div class="field"><label for="c-msg">Mensaje</label>
+        <textarea class="input" id="c-msg" name="mensaje" rows="5" maxlength="2000" placeholder="Ej: me gustaría poder… / al guardar una nota pasó…" ${demo ? 'disabled' : 'autofocus'}></textarea>
+        <span class="hint">Si es un error, cuéntanos qué estabas haciendo. No incluyas contraseñas ni datos sensibles.</span></div>
+    </div>
+    <footer><button type="button" class="btn" data-act="cerrar-modal">Cancelar</button>
+      ${demo ? (supabaseConfigurado() ? '<button type="button" class="btn btn-teal" data-act="demo-registro">Crear cuenta gratis</button>' : '') : '<button class="btn btn-teal">Enviar</button>'}</footer>
+  </form>`;
+}
+
+async function enviarComentario(f) {
+  const mensaje = f.mensaje.value.trim();
+  if (mensaje.length < 3) return errModal('Escribe tu comentario antes de enviarlo.');
+  const btn = f.querySelector('.btn-teal');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  try {
+    await S.store.insert('comentarios', {
+      tipo: f.tipo.value,
+      mensaje: mensaje.slice(0, 2000),
+      pantalla: S.tab,
+      user_agent: navigator.userAgent.slice(0, 300),
+    });
+    cerrarModal();
+    toast({ zona: 'verde', titulo: '✓ ¡Gracias! Recibimos tu comentario' });
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Enviar';
+    errModal(traducirError(err));
+  }
 }
 
 // ---------- PDF ----------
@@ -1175,6 +1222,11 @@ const acciones = {
       onOk: () => cerrarSemestre(an, sem, sig),
     });
   },
+  comentarios() {
+    S.alertsOpen = false;
+    render();
+    abrirModal({ tipo: 'comentario' });
+  },
   'toggle-alertas'() {
     S.alertsOpen = !S.alertsOpen;
     render();
@@ -1264,6 +1316,7 @@ document.addEventListener('submit', async (ev) => {
     S.undo[r.id] = [];
     return actualizar('ramos', r.id, cambios);
   }
+  if (tipo === 'comentario') return enviarComentario(f);
   if (tipo === 'perfil') {
     const cambios = { nombre: f.nombre.value.trim().slice(0, 120), ...leerPerfil(f) };
     try {

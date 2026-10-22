@@ -3,7 +3,7 @@ import { CONFIG } from '/config.js';
 import { semillaDemo } from './data.js';
 
 const SUPABASE_ESM = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.80.0/+esm';
-const TABLAS = ['semestres', 'ramos', 'evaluaciones'];
+const TABLAS = ['semestres', 'ramos', 'evaluaciones', 'comentarios'];
 
 let cliente = null;
 export async function getSupabase() {
@@ -48,6 +48,12 @@ export class RemoteStore {
   async insert(tabla, filas) {
     check(tabla);
     const rows = (Array.isArray(filas) ? filas : [filas]).map((f) => ({ ...f, user_id: this.user.id }));
+    if (tabla === 'comentarios') {
+      // Solo escritura: el estudiante no puede leer comentarios, así que no se pide .select().
+      const { error } = await this.sb.from(tabla).insert(rows);
+      if (error) throw error;
+      return Array.isArray(filas) ? rows : rows[0];
+    }
     const { data, error } = await this.sb.from(tabla).insert(rows).select();
     if (error) throw error;
     return Array.isArray(filas) ? data : data[0];

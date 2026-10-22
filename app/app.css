@@ -37,7 +37,7 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
-button, input, select { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 a { color: var(--teal); }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
@@ -433,3 +433,13 @@ details.sem[open] summary::after { transform: rotate(90deg); }
 .rep-ramo th, .rep-ramo td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); font-size: 11px; }
 .rep-need { background: var(--z-lt); color: var(--z-tx); border-radius: var(--r-ctl); padding: 8px 10px; font-weight: 500; }
 .rep-foot { text-align: center; color: var(--muted); font-size: 11px; margin-top: 16px; }
+
+/* ---------- Comentarios ---------- */
+textarea.input { min-height: 120px; resize: vertical; line-height: 1.5; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg label { position: relative; }
+.seg input { position: absolute; opacity: 0; inset: 0; }
+.seg span { display: inline-block; padding: 7px 14px; border: 1px solid var(--border); border-radius: var(--r-pill); font-size: 13px; font-weight: 500; cursor: pointer; }
+.seg input:checked + span { background: var(--teal-lt); border-color: var(--teal); color: var(--green-tx); }
+.seg input:focus-visible + span { outline: 2px solid var(--teal); outline-offset: 2px; }
+.seg input:disabled + span { opacity: .5; cursor: not-allowed; }
