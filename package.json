@@ -1,7 +1,10 @@
 {
   "name": "estudia",
-  "version": "1.0.0",
-  "engines": {
-    "node": "24.x"
+  "private": true,
+  "type": "module",
+  "description": "Estudia! — optimización académica basada en riesgo (micro app beta)",
+  "scripts": {
+    "dev": "npx serve . -l 3000",
+    "test": "node --test tests/*.test.mjs"
   }
 }

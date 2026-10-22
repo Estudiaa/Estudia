@@ -1,0 +1,131 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  calcRamo, calcAsistencia, mensajeAsistencia, planHoras, promedioGlobal, fmtNota,
+  diasRestantes, semestreDeFecha, semestreSiguiente, generarAlertas,
+} from '../app/engine.js';
+
+const ev = (ponderacion, nota = null, extra = {}) => ({ id: Math.random().toString(36), nombre: 'E', ponderacion, nota, ...extra });
+
+test('Cálculo Diferencial (datos de ejemplo): zona verde', () => {
+  const c = calcRamo({}, [ev(30, 6.0), ev(30, 5.8), ev(40)]);
+  assert.equal(fmtNota(c.notaActual), '5.9');
+  // (4*100 - (180+174)) / 40 = 1.15 → necesita 1.2
+  assert.equal(c.notaMinMostrar, 1.2);
+  assert.equal(c.prob, 88);
+  assert.equal(c.zona, 'verde');
+});
+
+test('Termodinámica (datos de ejemplo): zona roja', () => {
+  const c = calcRamo({}, [ev(20, 2.5), ev(30, 3.0), ev(50)]);
+  // (400 - 50 - 90) / 50 = 5.2
+  assert.equal(c.notaMinMostrar, 5.2);
+  assert.equal(c.prob, 42);
+  assert.equal(c.zona, 'amarillo');
+  const c2 = calcRamo({}, [ev(30, 2.0), ev(30, 2.5), ev(40)]);
+  // (400 - 60 - 75) / 40 = 6.625
+  assert.equal(c2.notaMinMostrar, 6.7);
+  assert.equal(c2.zona, 'rojo');
+});
+
+test('Bug 2: nota mínima acotada y estados especiales', () => {
+  const asegurado = calcRamo({}, [ev(50, 7.0), ev(50)]);
+  assert.ok(asegurado.notaMinPend <= 1.0);
+  assert.equal(asegurado.estadoMin, 'asegurado');
+  assert.equal(asegurado.notaMinMostrar, 1.0);
+  assert.equal(asegurado.prob, 98);
+
+  const imposible = calcRamo({}, [ev(60, 1.5), ev(40)]);
+  assert.ok(imposible.notaMinPend > 7.0);
+  assert.equal(imposible.estadoMin, 'imposible');
+  assert.equal(imposible.notaMinMostrar, 7.0);
+  assert.equal(imposible.prob, 0);
+  assert.equal(imposible.zona, 'rojo');
+});
+
+test('Sin pendientes: tabla por tramos', () => {
+  assert.equal(calcRamo({}, [ev(100, 4.0)]).prob, 95);
+  assert.equal(calcRamo({}, [ev(100, 3.6)]).prob, 40);
+  assert.equal(calcRamo({}, [ev(100, 3.0)]).prob, 10);
+  assert.equal(calcRamo({}, [ev(100, 4.0)]).aprobado, true);
+});
+
+test('Nota de aprobación configurable por ramo', () => {
+  const c = calcRamo({ nota_aprobacion: 5.0 }, [ev(50, 5.0), ev(50)]);
+  assert.equal(c.notaMinMostrar, 5.0);
+  assert.equal(calcRamo({ nota_aprobacion: 5.0 }, [ev(100, 4.5)]).aprobado, false);
+});
+
+test('Bug 3: detecta ponderaciones que no suman 100', () => {
+  assert.equal(calcRamo({}, [ev(30, 5), ev(30)]).pondOk, false);
+  assert.equal(calcRamo({}, [ev(30, 5), ev(70)]).pondOk, true);
+});
+
+test('Ramo sin evaluaciones queda neutral', () => {
+  const c = calcRamo({}, []);
+  assert.equal(c.prob, null);
+  assert.equal(c.zona, 'neutral');
+});
+
+test('Bug 4: asistencia separa clases realizadas de futuras', () => {
+  // 30 clases, 75% → necesita 23. Lleva 20 realizadas, 18 asistidas → 10 restantes.
+  const a = calcAsistencia({ asist_requerida: 75, asist_total: 30, asist_realizadas: 20, asist_asistidas: 18 });
+  assert.equal(a.restantes, 10);
+  assert.equal(a.necesarias, 23);
+  assert.equal(a.debesAsistir, 5);
+  assert.equal(a.puedeFaltar, 5);
+  assert.equal(a.pctActual, 90);
+  assert.equal(a.zona, 'verde');
+  assert.match(mensajeAsistencia(a), /Puedes faltar 5 clases/);
+
+  const limite = calcAsistencia({ asist_requerida: 75, asist_total: 30, asist_realizadas: 25, asist_asistidas: 18 });
+  assert.equal(limite.caso, 'limite');
+
+  const imposible = calcAsistencia({ asist_requerida: 75, asist_total: 30, asist_realizadas: 26, asist_asistidas: 18 });
+  assert.equal(imposible.caso, 'imposible');
+  assert.equal(imposible.zona, 'rojo');
+
+  const cumplido = calcAsistencia({ asist_requerida: 75, asist_total: 30, asist_realizadas: 25, asist_asistidas: 24 });
+  assert.equal(cumplido.caso, 'cumplido');
+});
+
+test('Plan de horas pondera por zona y conserva el total', () => {
+  const p = planHoras([
+    { id: 1, horas: 10, zona: 'verde' },
+    { id: 2, horas: 10, zona: 'rojo' },
+  ]);
+  assert.equal(p.totalHoras, 20);
+  assert.equal(p.filas[0].id, 2);
+  assert.ok(Math.abs(p.filas[0].asignadas - 20 * 1.6 / 2.6) < 1e-9);
+  assert.ok(Math.abs(p.filas[0].asignadas + p.filas[1].asignadas - 20) < 1e-9);
+});
+
+test('Bug 1: el promedio global no queda topado en 4.0', () => {
+  const calcs = [calcRamo({}, [ev(50, 6.5), ev(50)]), calcRamo({}, [ev(50, 6.0), ev(50)])];
+  assert.equal(fmtNota(promedioGlobal(calcs)), '6.3');
+  assert.equal(promedioGlobal([calcRamo({}, [])]), null);
+});
+
+test('Fechas y semestres', () => {
+  const hoy = new Date(2026, 9, 21);
+  assert.equal(diasRestantes('2026-10-21', hoy), 0);
+  assert.equal(diasRestantes('2026-10-24', hoy), 3);
+  assert.deepEqual(semestreDeFecha(hoy), { anio: 2026, numero: 2, etiqueta: '2° Semestre 2026' });
+  assert.equal(semestreDeFecha(new Date(2026, 3, 1)).etiqueta, '1° Semestre 2026');
+  assert.equal(semestreDeFecha(new Date(2027, 0, 10)).etiqueta, '2° Semestre 2026');
+  assert.equal(semestreSiguiente(2026, 2).etiqueta, '1° Semestre 2027');
+});
+
+test('Alertas se generan con datos reales', () => {
+  const hoy = new Date(2026, 9, 21);
+  const mk = (id, nombre, evals) => ({ ramo: { id, nombre }, calc: calcRamo({}, evals), asist: null, evals });
+  const alertas = generarAlertas([
+    mk('a', 'Termo', [ev(30, 2.0), ev(30, 2.5), ev(40, null, { fecha: '2026-10-22' })]),
+    mk('b', 'Cálculo', [ev(30, 6.0), ev(30, 5.8), ev(40)]),
+  ], hoy);
+  assert.equal(alertas[0].zona, 'rojo');
+  assert.match(alertas[0].titulo, /Termo en zona crítica/);
+  assert.match(alertas[0].detalle, /necesitas 6\.7/);
+  assert.ok(alertas.some((a) => a.titulo.includes('Cálculo va muy bien')));
+  assert.ok(alertas.some((a) => a.detalle.startsWith('Mañana')));
+});
