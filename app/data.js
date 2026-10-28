@@ -91,7 +91,18 @@ export function semillaDemo(hoy = new Date()) {
   const cerrados = [
     ['h1', 'Álgebra', 5.6], ['h2', 'Introducción a la Ingeniería', 6.1], ['h3', 'Química General', 3.6], ['h4', 'Física I', 4.6],
   ].map(([id, nombre, nota_final]) => ({ id, user_id: 'demo', semestre_id: 'sem-prev', nombre, nota_final, nota_aprobacion: 4.0, horas_semana: 6, asist_requerida: 75, asist_total: 30, asist_realizadas: 30, asist_asistidas: 27 }));
+  const hoyIso = en(0);
+  const t = (id, titulo, fecha, ramo_id, hecha = false) => ({ id, user_id: 'demo', titulo, fecha, ramo_id, hecha, created_at: hoyIso + 'T0' + id.slice(1) + ':00:00Z' });
+  const tareas = [
+    t('t1', 'Ver clase grabada de Cálculo', hoyIso, 'r1', true),
+    t('t2', 'Leer apunte de Termodinámica (cap. 3)', hoyIso, 'r3'),
+    t('t3', 'Avanzar Proyecto 2', hoyIso, 'r4'),
+    t('t4', 'Imprimir guía de ejercicios', hoyIso, null),
+    t('t5', 'Resolver guía 4 de Física', hace(1), 'r2'),
+    t('t6', 'Repasar Control 2 de Termo', en(2), 'r3'),
+  ];
   return {
+    tareas,
     profile: { id: 'demo', nombre: 'Estudiante Demo', universidad: 'Universidad de Chile', carrera: 'Ingeniería Civil (Plan Común)', anio_ingreso: hoy.getFullYear() - 1, onboarded_at: hace(100) },
     email: 'demo@estudia.cl',
     semestres: [semPrev, { id: semId, user_id: 'demo', ...sem, activo: true, promedio: null, cerrado_at: null }],

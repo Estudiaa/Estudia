@@ -413,3 +413,39 @@ function clampNum(v, min, max, def) {
   if (v === null || v === undefined || v === '' || Number.isNaN(n)) return def;
   return Math.min(max, Math.max(min, n));
 }
+
+// ---------- Tareas del día ----------
+// Tareas simples: { id, titulo, fecha 'AAAA-MM-DD', hecha, ramo_id }.
+
+export const tareasDelDia = (tareas, iso) =>
+  tareas.filter((x) => x.fecha === iso).sort((a, b) => Number(a.hecha) - Number(b.hecha) || String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')));
+
+export const tareasAtrasadas = (tareas, hoyIso) =>
+  tareas.filter((x) => !x.hecha && x.fecha && x.fecha < hoyIso).sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+// Sugerencias para hoy a partir de lo que la app ya sabe: evaluaciones de la próxima
+// semana y ramos en riesgo según el plan de horas. No repite tareas que ya existen hoy.
+export function sugerenciasDelDia(ramos, tareasHoy, hoy = new Date(), max = 4) {
+  // ramos: [{ ramo, calc, evals }]
+  const ya = new Set(tareasHoy.map((x) => x.titulo.trim().toLowerCase()));
+  const out = [];
+  const proximas = [];
+  for (const { ramo, calc, evals } of ramos)
+    for (const e of evals) {
+      if (!e.fecha || evalCompleta(e)) continue;
+      const n = diasRestantes(e.fecha, hoy);
+      if (n !== null && n >= 0 && n <= 7) proximas.push({ ramo, calc, e, n });
+    }
+  proximas.sort((a, b) => a.n - b.n);
+  for (const { ramo, e, n } of proximas)
+    out.push({ titulo: `Estudiar para ${e.nombre} de ${ramo.nombre}`, ramoId: ramo.id, motivo: n === 0 ? 'Es hoy' : etiquetaDias(n), zona: zonaDias(n) });
+
+  const plan = planHoras(ramos.map(({ ramo, calc }) => ({ id: ramo.id, nombre: ramo.nombre, horas: ramo.horas_semana, zona: calc.zona })));
+  for (const f of plan.filas) {
+    if (f.zona !== 'rojo' && f.zona !== 'amarillo') continue;
+    if (out.some((s) => s.ramoId === f.id)) continue;
+    const horas = Math.max(0.5, Math.round((f.asignadas / 7) * 2) / 2);
+    out.push({ titulo: `Estudiar ${f.nombre} (${String(horas).replace('.', ',')} h)`, ramoId: f.id, motivo: f.zona === 'rojo' ? 'Zona roja' : 'Zona amarilla', zona: f.zona });
+  }
+  return out.filter((s) => !ya.has(s.titulo.toLowerCase())).slice(0, max);
+}

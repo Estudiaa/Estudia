@@ -228,3 +228,29 @@ test('Asistencia opcional y sin total de clases', async () => {
   assert.equal(con.conTotal, true);
   assert.equal(con.puedeFaltar, 6);
 });
+
+test('Tareas del día, atrasadas y sugerencias', async () => {
+  const { tareasDelDia, tareasAtrasadas, sugerenciasDelDia } = await import('../app/engine.js');
+  const tareas = [
+    { id: 1, titulo: 'Leer apunte', fecha: '2026-10-28', hecha: true },
+    { id: 2, titulo: 'Ver clase', fecha: '2026-10-28', hecha: false },
+    { id: 3, titulo: 'Guía 2', fecha: '2026-10-26', hecha: false },
+    { id: 4, titulo: 'Guía 1', fecha: '2026-10-20', hecha: true },
+  ];
+  assert.deepEqual(tareasDelDia(tareas, '2026-10-28').map((x) => x.id), [2, 1]); // pendientes primero
+  assert.deepEqual(tareasAtrasadas(tareas, '2026-10-28').map((x) => x.id), [3]);  // las hechas no se arrastran
+
+  const hoy = new Date(2026, 9, 28);
+  const mk = (id, nombre, horas, evals) => ({ ramo: { id, nombre, horas_semana: horas }, calc: calcRamo({}, evals), evals });
+  const termo = mk('t', 'Termodinámica', 8, [ev(30, 2.0), ev(30, 2.5), ev(40)]);                       // rojo
+  const fisica = mk('f', 'Física II', 8, [ev(50, 4.0), { ...ev(50), nombre: 'Examen', fecha: '2026-10-31' }]);
+  const calculo = mk('c', 'Cálculo', 8, [ev(50, 6.5), ev(50)]);                                       // verde
+  const s = sugerenciasDelDia([termo, fisica, calculo], [], hoy);
+  assert.equal(s[0].titulo, 'Estudiar para Examen de Física II');
+  assert.equal(s[0].motivo, 'En 3 días');
+  assert.ok(s.some((x) => x.ramoId === 't' && /^Estudiar Termodinámica \(\d+(,5)? h\)$/.test(x.titulo)));
+  assert.ok(!s.some((x) => x.ramoId === 'c'));                                                        // verde sin evaluación cerca
+  // No repite lo que ya está en la lista de hoy.
+  const s2 = sugerenciasDelDia([termo, fisica, calculo], [{ titulo: 'Estudiar para Examen de Física II' }], hoy);
+  assert.ok(!s2.some((x) => x.ramoId === 'f'));
+});

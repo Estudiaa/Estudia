@@ -3,7 +3,7 @@ import { CONFIG } from '/config.js';
 import { semillaDemo } from './data.js';
 
 const SUPABASE_ESM = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.80.0/+esm';
-const TABLAS = ['semestres', 'ramos', 'evaluaciones', 'comentarios'];
+const TABLAS = ['semestres', 'ramos', 'evaluaciones', 'comentarios', 'tareas'];
 
 let cliente = null;
 export async function getSupabase() {
@@ -25,13 +25,16 @@ export class RemoteStore {
 
   async loadAll() {
     const uid = this.user.id;
-    const [p, s, r, e] = await Promise.all([
+    const [p, s, r, e, t] = await Promise.all([
       this.sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
       this.sb.from('semestres').select('*').eq('user_id', uid).order('anio').order('numero'),
       this.sb.from('ramos').select('*').eq('user_id', uid).order('created_at'),
       this.sb.from('evaluaciones').select('*').eq('user_id', uid).order('created_at'),
+      this.sb.from('tareas').select('*').eq('user_id', uid).order('created_at'),
     ]);
     for (const res of [p, s, r, e]) if (res.error) throw res.error;
+    // Si la tabla de tareas aún no existe, la app sigue funcionando sin ellas.
+    if (t.error) console.warn('Tareas no disponibles:', t.error.message);
     let profile = p.data;
     if (!profile) {
       // Respaldo por si el trigger handle_new_user no creó el perfil.
@@ -42,7 +45,7 @@ export class RemoteStore {
       if (ins.error) throw ins.error;
       profile = ins.data;
     }
-    return { profile, email: this.user.email, semestres: s.data, ramos: r.data, evaluaciones: e.data };
+    return { profile, email: this.user.email, semestres: s.data, ramos: r.data, evaluaciones: e.data, tareas: t.error ? [] : t.data };
   }
 
   async insert(tabla, filas) {
@@ -111,7 +114,10 @@ export class DemoStore {
   async remove(tabla, id) {
     check(tabla);
     this.db[tabla] = this.db[tabla].filter((x) => x.id !== id);
-    if (tabla === 'ramos') this.db.evaluaciones = this.db.evaluaciones.filter((e) => e.ramo_id !== id);
+    if (tabla === 'ramos') {
+      this.db.evaluaciones = this.db.evaluaciones.filter((e) => e.ramo_id !== id);
+      for (const x of this.db.tareas) if (x.ramo_id === id) x.ramo_id = null;
+    }
   }
 
   async updateProfile(cambios) {

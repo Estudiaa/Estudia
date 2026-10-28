@@ -139,6 +139,36 @@ create policy "evaluaciones: borrar"     on public.evaluaciones for delete to au
 -- Los visitantes sin sesión no tienen acceso a nada.
 revoke all on public.profiles, public.semestres, public.ramos, public.evaluaciones from anon;
 
+-- ---------- Tareas del día ----------
+-- Lista simple de pendientes por fecha, opcionalmente asociada a un ramo propio.
+
+create table if not exists public.tareas (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  ramo_id    uuid references public.ramos (id) on delete set null,
+  titulo     text not null check (char_length(titulo) between 1 and 160),
+  fecha      date not null default current_date,
+  hecha      boolean not null default false,
+  hecha_at   timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists tareas_user_fecha_idx on public.tareas (user_id, fecha);
+
+alter table public.tareas enable row level security;
+drop policy if exists "tareas: leer"       on public.tareas;
+drop policy if exists "tareas: crear"      on public.tareas;
+drop policy if exists "tareas: actualizar" on public.tareas;
+drop policy if exists "tareas: borrar"     on public.tareas;
+create policy "tareas: leer"       on public.tareas for select to authenticated using (user_id = (select auth.uid()));
+create policy "tareas: crear"      on public.tareas for insert to authenticated with check (
+  user_id = (select auth.uid())
+  and (ramo_id is null or exists (select 1 from public.ramos r where r.id = ramo_id and r.user_id = (select auth.uid()))));
+create policy "tareas: actualizar" on public.tareas for update to authenticated using (user_id = (select auth.uid())) with check (
+  user_id = (select auth.uid())
+  and (ramo_id is null or exists (select 1 from public.ramos r where r.id = ramo_id and r.user_id = (select auth.uid()))));
+create policy "tareas: borrar"     on public.tareas for delete to authenticated using (user_id = (select auth.uid()));
+revoke all on public.tareas from anon;
+
 -- ---------- Comentarios de la beta ----------
 -- Los estudiantes solo pueden ENVIAR comentarios propios; no pueden leer ni editar
 -- ninguno. El dueño los lee desde el Table Editor del panel de Supabase.

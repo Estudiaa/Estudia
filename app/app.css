@@ -496,3 +496,39 @@ table.evals tr.sub-row td { padding-top: 0; }
 .asist-campos { margin-top: 2px; }
 .asist-hint { font-size: 12px; color: var(--muted); margin: -6px 0 12px; }
 .np-box .asist-hint:last-child { margin-bottom: 0; }
+
+/* ---------- Hoy y tareas ---------- */
+.hoy-tit { font-size: 22px !important; }
+.hoy-prog { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 110px; font-size: 13px; color: var(--muted); }
+.hoy-prog .bar { width: 110px; }
+.hoy-eval { background: var(--z-lt); color: var(--z-tx); border-radius: var(--r-ctl); padding: 10px 12px; font-size: 13px; margin-bottom: 10px; cursor: pointer; }
+.add-tarea { display: grid; grid-template-columns: minmax(0, 1fr) 170px auto; gap: 8px; margin-bottom: 8px; }
+.tareas { display: flex; flex-direction: column; }
+.tareas-vacio { font-size: 13px; padding: 10px 0; margin: 0; }
+.tarea, .sug { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.tarea:last-child, .sug:last-child { border-bottom: 0; }
+.check { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 2px solid var(--light); background: var(--surface); color: #fff; font-size: 14px; font-weight: 700; display: grid; place-items: center; transition: background .15s, border-color .15s; }
+.check:hover { border-color: var(--teal); }
+.tarea.hecha .check { background: var(--teal); border-color: var(--teal); }
+.t-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.t-tit { font-weight: 500; overflow-wrap: anywhere; }
+.tarea.hecha .t-tit { text-decoration: line-through; color: var(--light); }
+.t-meta { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.t-ramo { display: inline-flex; align-items: center; gap: 5px; }
+.t-ramo i { width: 8px; height: 8px; border-radius: 50%; background: var(--z); display: inline-block; }
+.hoy-ok { margin-top: 10px; background: var(--teal-lt); color: var(--green-tx); border-radius: var(--r-ctl); padding: 10px 12px; font-weight: 500; font-size: 13px; text-align: center; }
+.cal-tareas { font: 500 11px var(--mono); color: var(--teal); padding: 0 3px; margin-top: auto; }
+.cal-tareas.listo { color: var(--light); }
+.legend em { font-style: normal; margin-left: auto; color: var(--light); }
+.modal .add-tarea { margin-top: 12px; }
+@media (max-width: 768px) {
+  .add-tarea { grid-template-columns: minmax(0, 1fr) auto; }
+  .add-tarea .input[name=titulo] { grid-column: 1 / -1; }
+  .legend { flex-wrap: wrap; }
+  .legend em { margin-left: 0; flex-basis: 100%; }
+  .cal-tareas { font-size: 9px; padding: 0; }
+}
+@media (max-width: 768px) {
+  /* En "Hoy" el día va primero en el celular; los ramos quedan debajo. */
+  .layout.tab-hoy .sidebar { order: 2; }
+}

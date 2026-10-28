@@ -316,7 +316,8 @@ async function entrar(store) {
     return render();
   }
   S.activeRamoId = ramosActivos()[0]?.id ?? null;
-  S.tab = 'detalle';
+  S.tab = 'hoy';
+  S.data.tareas ||= [];
   S.view = S.data.profile.onboarded_at ? 'app' : 'onboarding';
   render();
   if (S.view === 'app') avisosIniciales();
@@ -420,14 +421,14 @@ function viewApp() {
       <button class="btn btn-sm btn-out" data-act="logout" aria-label="Cerrar sesión">↪<span class="lbl"> ${S.store.demo ? 'Salir de la demo' : 'Cerrar sesión'}</span></button>
     </div>
   </header>
-  <div class="layout">
+  <div class="layout tab-${S.tab}">
     <aside class="sidebar">${viewSidebar(an)}</aside>
     <main class="main">
       <nav class="tabs" role="tablist">
-        ${[['detalle', 'Detalle'], ['plan', 'Plan hrs'], ['calendario', 'Calendario'], ['historial', 'Historial'], ['perfil', 'Perfil']]
+        ${[['hoy', 'Hoy'], ['detalle', 'Detalle'], ['plan', 'Plan hrs'], ['calendario', 'Calendario'], ['historial', 'Historial'], ['perfil', 'Perfil']]
           .map(([k, l]) => `<button class="tab ${S.tab === k ? 'active' : ''}" role="tab" aria-selected="${S.tab === k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}
       </nav>
-      ${{ detalle: viewDetalle, plan: viewPlan, calendario: viewCalendario, historial: viewHistorial, perfil: viewPerfil }[S.tab](an)}
+      ${{ hoy: viewHoy, detalle: viewDetalle, plan: viewPlan, calendario: viewCalendario, historial: viewHistorial, perfil: viewPerfil }[S.tab](an)}
     </main>
   </div>
   ${S.alertsOpen ? viewAlertas(alertas) : ''}`;
@@ -664,6 +665,93 @@ function viewAsistencia({ ramo, asist: a }) {
   </section>`;
 }
 
+// ---------- Hoy ----------
+
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const fechaHumana = (d) => {
+  const txt = `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()].toLowerCase()}`;
+  return txt[0].toUpperCase() + txt.slice(1);
+};
+
+function filaTarea(x, opts = {}) {
+  const ramo = x.ramo_id ? S.data.ramos.find((r) => r.id === x.ramo_id) : null;
+  const zona = ramo ? (analisis().find((a) => a.ramo.id === ramo.id)?.calc.zona ?? 'neutral') : null;
+  const id = esc(x.id);
+  return `<div class="tarea ${x.hecha ? 'hecha' : ''}">
+    <button class="check" id="chk-${id}" data-act="tarea-toggle" data-id="${id}" role="checkbox" aria-checked="${x.hecha}" aria-label="${x.hecha ? 'Marcar como pendiente' : 'Marcar como hecha'}: ${esc(x.titulo)}">${x.hecha ? '✓' : ''}</button>
+    <div class="t-main">
+      <span class="t-tit">${esc(x.titulo)}</span>
+      <span class="t-meta">${ramo ? `<span class="t-ramo z-${zona}"><i></i>${esc(ramo.nombre)}</span>` : ''}${opts.conFecha ? `<span>${esc(fechaHumana(E.parseFecha(x.fecha)))}</span>` : ''}</span>
+    </div>
+    ${opts.aHoy ? `<button class="btn btn-sm" id="ahoy-${id}" data-act="tarea-a-hoy" data-id="${id}">Pasar a hoy</button>` : ''}
+    <button class="x-btn" id="del-t-${id}" data-act="tarea-borrar" data-id="${id}" aria-label="Borrar tarea ${esc(x.titulo)}">✕</button>
+  </div>`;
+}
+
+function formTarea(fecha, idPre) {
+  const ramos = ramosActivos();
+  return `<form class="add-tarea" data-form="tarea" novalidate>
+    <input type="hidden" name="fecha" value="${esc(fecha)}">
+    <input class="input" id="${idPre}-tit" name="titulo" maxlength="160" placeholder="¿Qué tienes que hacer?" aria-label="Nueva tarea" autocomplete="off">
+    <select class="input" id="${idPre}-ramo" name="ramo_id" aria-label="Ramo (opcional)">
+      <option value="">Sin ramo</option>
+      ${ramos.map((r) => `<option value="${esc(r.id)}">${esc(r.nombre)}</option>`).join('')}
+    </select>
+    <button class="btn btn-teal" id="${idPre}-btn">Agregar</button>
+  </form>`;
+}
+
+function viewHoy(an) {
+  const hoy = new Date();
+  const iso = E.isoFecha(hoy);
+  const deHoy = E.tareasDelDia(S.data.tareas, iso);
+  const hechas = deHoy.filter((x) => x.hecha).length;
+  const atrasadas = E.tareasAtrasadas(S.data.tareas, iso);
+  const sugerencias = E.sugerenciasDelDia(an, deHoy, hoy);
+  const evalsHoy = eventosActivos().filter((x) => x.e.fecha === iso && !E.evalCompleta(x.e));
+  const pct = deHoy.length ? Math.round((hechas / deHoy.length) * 100) : 0;
+  return `
+    <section class="card">
+      <div class="card-head" style="margin-bottom:12px">
+        <div><h2 class="hoy-tit">Hoy</h2><div class="card-sub">${esc(fechaHumana(hoy))}</div></div>
+        ${deHoy.length ? `<div class="hoy-prog"><span class="mono">${hechas}/${deHoy.length}</span><div class="bar z-teal"><span style="width:${pct}%"></span></div></div>` : ''}
+      </div>
+      ${evalsHoy.map((x) => `<div class="hoy-eval z-${x.zona}" data-act="ramo" data-id="${esc(x.ramo.id)}" role="button" tabindex="0">📌 <strong>${esc(x.e.nombre)}</strong> de ${esc(x.ramo.nombre)} es hoy · <span class="mono">${Number(x.e.ponderacion)}%</span></div>`).join('')}
+      ${formTarea(iso, 'hoy')}
+      <div class="tareas">
+        ${deHoy.length ? deHoy.map((x) => filaTarea(x)).join('') : '<p class="muted tareas-vacio">Nada por ahora. Agrega lo que quieres hacer hoy o elige una sugerencia.</p>'}
+      </div>
+      ${deHoy.length && hechas === deHoy.length ? '<div class="hoy-ok">🎉 ¡Terminaste todo lo de hoy!</div>' : ''}
+    </section>
+    ${sugerencias.length ? `<section class="card">
+      <div class="card-head" style="margin-bottom:8px"><div><h2>Sugerencias para hoy</h2><div class="card-sub">Según tus evaluaciones y tu plan de horas</div></div></div>
+      ${sugerencias.map((g, i) => `<div class="sug">
+        <div class="t-main"><span class="t-tit">${esc(g.titulo)}</span><span class="t-meta">${pill(g.zona, g.motivo)}</span></div>
+        <button class="btn btn-sm" id="sug-${i}" data-act="sugerencia" data-titulo="${esc(g.titulo)}" data-ramo="${esc(g.ramoId)}">+ Agregar</button>
+      </div>`).join('')}
+    </section>` : ''}
+    ${atrasadas.length ? `<section class="card">
+      <div class="card-head" style="margin-bottom:8px"><div><h2>Pendientes de otros días</h2><div class="card-sub">${atrasadas.length} ${atrasadas.length === 1 ? 'tarea quedó' : 'tareas quedaron'} sin hacer</div></div></div>
+      <div class="tareas">${atrasadas.map((x) => filaTarea(x, { aHoy: true, conFecha: true })).join('')}</div>
+    </section>` : ''}`;
+}
+
+async function crearTarea(titulo, fecha, ramoId) {
+  try {
+    const fila = await S.store.insert('tareas', { titulo: titulo.slice(0, 160), fecha, ramo_id: ramoId || null, hecha: false });
+    S.data.tareas.push(fila);
+    return true;
+  } catch (err) {
+    toastError(/tareas/.test(String(err?.message)) ? 'Las tareas aún no están activadas en la base de datos.' : err);
+    return false;
+  }
+}
+
+// El modal del día se redibuja tras cada cambio para mostrar el estado nuevo.
+function refrescarModalDia() {
+  if (S.modal?.tipo === 'dia') abrirModal({ tipo: 'dia', fecha: S.modal.fecha });
+}
+
 // ---------- Plan de horas ----------
 
 function viewPlan(an) {
@@ -697,6 +785,8 @@ function viewCalendario() {
   const ev = eventosActivos();
   const porDia = {};
   for (const x of ev) (porDia[x.e.fecha] ||= []).push(x);
+  const tareasPorDia = {};
+  for (const x of S.data.tareas) (tareasPorDia[x.fecha] ||= []).push(x);
   const inicio = new Date(mes.getFullYear(), mes.getMonth(), 1 - mes.getDay());
   const semanas = Math.ceil((mes.getDay() + new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate()) / 7);
   const hoyIso = E.isoFecha(hoy);
@@ -705,12 +795,13 @@ function viewCalendario() {
     const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i);
     const iso = E.isoFecha(d);
     const items = porDia[iso] || [];
-    const cls = ['cal-day', d.getMonth() !== mes.getMonth() && 'other', iso === hoyIso && 'today', items.length && 'has'].filter(Boolean).join(' ');
+    const cls = ['cal-day', 'has', d.getMonth() !== mes.getMonth() && 'other', iso === hoyIso && 'today'].filter(Boolean).join(' ');
     const chips = items.slice(0, 2).map((x) => `<span class="chip z-${x.zona}" title="${esc(x.ramo.nombre)}: ${esc(x.e.nombre)}">${esc(x.e.nombre)}</span>`).join('');
     const mas = items.length > 2 ? `<span class="chip-more">+${items.length - 2}</span>` : '';
-    celdas += items.length
-      ? `<button class="${cls}" data-act="dia" data-fecha="${iso}" aria-label="${d.getDate()} de ${MESES[d.getMonth()]}: ${items.length} evaluaciones"><span class="d">${d.getDate()}</span>${chips}${mas}</button>`
-      : `<div class="${cls}"><span class="d">${d.getDate()}</span></div>`;
+    const tds = tareasPorDia[iso] || [];
+    const pend = tds.filter((x) => !x.hecha).length;
+    const tareasTxt = tds.length ? `<span class="cal-tareas ${pend ? '' : 'listo'}" title="${tds.length} tareas">${pend ? `☐ ${pend}` : '✓'}</span>` : '';
+    celdas += `<button class="${cls}" data-act="dia" data-fecha="${iso}" aria-label="${d.getDate()} de ${MESES[d.getMonth()]}: ${items.length} evaluaciones, ${tds.length} tareas"><span class="d">${d.getDate()}</span>${chips}${mas}${tareasTxt}</button>`;
   }
   const proximas = ev
     .map((x) => ({ ...x, n: E.diasRestantes(x.e.fecha, hoy) }))
@@ -727,7 +818,7 @@ function viewCalendario() {
       ${['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((d) => `<div class="cal-dow">${d}</div>`).join('')}
       ${celdas}
     </div>
-    <div class="legend"><span class="z-verde">Verde</span><span class="z-amarillo">Amarillo</span><span class="z-rojo">Rojo</span></div>
+    <div class="legend"><span class="z-verde">Verde</span><span class="z-amarillo">Amarillo</span><span class="z-rojo">Rojo</span><em>☐ tareas pendientes · toca un día para ver o agregar</em></div>
   </section>
   <section class="card">
     <div class="card-head"><div><h2>Próximas evaluaciones</h2><div class="card-sub">Próximos 45 días</div></div></div>
@@ -886,7 +977,7 @@ const toastError = (err) => {
 // ---------- Persistencia ----------
 
 async function actualizar(tabla, id, cambios) {
-  const lista = tabla === 'ramos' ? S.data.ramos : tabla === 'semestres' ? S.data.semestres : S.data.evaluaciones;
+  const lista = S.data[tabla];
   const fila = lista.find((x) => x.id === id);
   const antes = Object.fromEntries(Object.keys(cambios).map((k) => [k, fila[k]]));
   Object.assign(fila, cambios);
@@ -1205,13 +1296,18 @@ function modalConfirm(m) {
 function modalDia(m) {
   const d = E.parseFecha(m.fecha);
   const items = eventosActivos().filter((x) => x.e.fecha === m.fecha);
+  const tareas = E.tareasDelDia(S.data.tareas, m.fecha);
   return `<div class="modal sm" role="dialog" aria-modal="true" aria-labelledby="m-title">
-    <header><h2 id="m-title">${d.getDate()} de ${MESES[d.getMonth()].toLowerCase()}</h2><button type="button" class="x-btn" data-act="cerrar-modal" aria-label="Cerrar">✕</button></header>
+    <header><h2 id="m-title">${esc(fechaHumana(d))}</h2><button type="button" class="x-btn" data-act="cerrar-modal" aria-label="Cerrar">✕</button></header>
     <div class="body">
+      ${items.length ? '<div class="section-label" style="margin-top:0">Evaluaciones</div>' : ''}
       ${items.map((x) => `<div class="prox" data-act="ramo" data-id="${esc(x.ramo.id)}" role="button" tabindex="0">
         <div class="info"><strong>${esc(x.e.nombre)}</strong><span>${esc(x.ramo.nombre)} · <span class="mono">${Number(x.e.ponderacion)}%</span> de la nota${E.notaEval(x.e) !== null ? ` · ${E.esGrupo(x.e) ? 'promedio' : 'nota'} <span class="mono">${fmt(E.notaEval(x.e))}</span>` : ''}</span></div>
         ${pill(x.zona)}
       </div>`).join('')}
+      <div class="section-label"${items.length ? '' : ' style="margin-top:0"'}>Tareas</div>
+      <div class="tareas">${tareas.length ? tareas.map((x) => filaTarea(x)).join('') : '<p class="muted tareas-vacio">Sin tareas para este día.</p>'}</div>
+      ${formTarea(m.fecha, 'dia')}
     </div>
   </div>`;
 }
@@ -1375,6 +1471,7 @@ const acciones = {
           await S.store.remove('ramos', r.id);
           S.data.ramos = S.data.ramos.filter((x) => x.id !== r.id);
           S.data.evaluaciones = S.data.evaluaciones.filter((e) => e.ramo_id !== r.id);
+          for (const x of S.data.tareas) if (x.ramo_id === r.id) x.ramo_id = null;
           S.activeRamoId = ramosActivos()[0]?.id ?? null;
           render();
         } catch (err) {
@@ -1487,6 +1584,35 @@ const acciones = {
     S.calMes = new Date(base.getFullYear(), base.getMonth() + Number(el.dataset.d), 1);
     render();
   },
+  async 'tarea-toggle'(el) {
+    const x = S.data.tareas.find((t) => t.id === el.dataset.id);
+    const hecha = !x.hecha;
+    await actualizar('tareas', x.id, { hecha, hecha_at: hecha ? new Date().toISOString() : null });
+    refrescarModalDia();
+  },
+  async 'tarea-borrar'(el) {
+    const idx = S.data.tareas.findIndex((t) => t.id === el.dataset.id);
+    const [quitada] = S.data.tareas.splice(idx, 1);
+    render();
+    refrescarModalDia();
+    try {
+      await S.store.remove('tareas', quitada.id);
+    } catch (err) {
+      S.data.tareas.splice(idx, 0, quitada);
+      toastError(err);
+      render();
+      refrescarModalDia();
+    }
+  },
+  'tarea-a-hoy'(el) {
+    actualizar('tareas', el.dataset.id, { fecha: E.isoFecha(new Date()) });
+  },
+  async sugerencia(el) {
+    if (await crearTarea(el.dataset.titulo, E.isoFecha(new Date()), el.dataset.ramo)) {
+      render();
+      toast({ zona: 'verde', titulo: '✓ Agregada a tu día', ms: 2500 });
+    }
+  },
   dia(el) {
     abrirModal({ tipo: 'dia', fecha: el.dataset.fecha });
   },
@@ -1598,6 +1724,22 @@ document.addEventListener('submit', async (ev) => {
     return actualizar('ramos', r.id, cambios);
   }
   if (tipo === 'comentario') return enviarComentario(f);
+  if (tipo === 'tarea') {
+    const titulo = f.titulo.value.trim();
+    if (!titulo) return f.titulo.focus();
+    const focoId = f.titulo.id;
+    if (await crearTarea(titulo, f.fecha.value, f.ramo_id.value)) {
+      const ramo = f.ramo_id.value;
+      render();
+      if (S.modal?.tipo === 'dia') refrescarModalDia();
+      // Deja el campo listo para la siguiente tarea, con el mismo ramo elegido.
+      const nuevo = document.getElementById(focoId);
+      nuevo?.focus();
+      const sel = nuevo?.form?.ramo_id;
+      if (sel) sel.value = ramo;
+    }
+    return;
+  }
   if (tipo === 'perfil') {
     const cambios = { nombre: f.nombre.value.trim().slice(0, 120), ...leerPerfil(f) };
     try {
