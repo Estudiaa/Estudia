@@ -48,8 +48,10 @@ a { color: var(--teal); }
 :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
 /* ---------- Logo ---------- */
-.logo { font-weight: 600; letter-spacing: -0.04em; font-size: 20px; color: inherit; text-decoration: none; }
-.logo b { color: var(--teal); font-weight: 600; }
+.logo { font-family: 'Poppins', var(--sans, system-ui), sans-serif; font-weight: 700; letter-spacing: -0.038em; line-height: 1; display: inline-flex; align-items: baseline; white-space: nowrap; color: inherit; text-decoration: none; }
+.logo { font-size: 22px; }
+.logo-mark { height: .695em; width: auto; margin-right: .062em; flex: none; }
+.logo b { color: var(--teal); font-weight: 700; margin-left: -.005em; }
 
 /* ---------- Botones e inputs ---------- */
 .btn {

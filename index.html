@@ -8,12 +8,12 @@
   <meta name="theme-color" content="#0D1B3E">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <meta property="og:title" content="Estudia! con inteligencia, no a ciegas.">
   <meta property="og:description" content="Calcula tu nota mínima, tu zona de riesgo y redistribuye tus horas de estudio.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --navy: #0D1B3E; --navy2: #162447; --teal: #0F9E81; --teal-lt: #E1F5EE; --teal-md: #9FE1CB;
@@ -26,9 +26,11 @@
     body { margin: 0; background: #fff; color: var(--text); font: 400 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
     a { color: inherit; }
     .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
-    .logo { font-weight: 600; letter-spacing: -0.04em; font-size: 22px; text-decoration: none; }
-    .logo b { color: var(--teal); }
-    .btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; padding: 12px 22px; font-weight: 500; text-decoration: none; border: 1px solid transparent; transition: background .15s, transform .15s; white-space: nowrap; }
+    .logo { font-family: 'Poppins', var(--sans, system-ui), sans-serif; font-weight: 700; letter-spacing: -0.038em; line-height: 1; display: inline-flex; align-items: baseline; white-space: nowrap; color: inherit; text-decoration: none; }
+.logo { font-size: 24px; }
+    .logo-mark { height: .695em; width: auto; margin-right: .062em; flex: none; }
+.logo b { color: var(--teal); font-weight: 700; margin-left: -.005em; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; padding: 12px 22px; font-weight: 500; text-decoration: none; border: 1px solid transparent; transition: background .15s, transform .15s; white-space: nowrap; }
     .btn:hover { transform: translateY(-1px); }
     .btn-navy { background: var(--navy); color: #fff; }
     .btn-teal { background: var(--teal); color: #fff; }
@@ -150,7 +152,7 @@
 <body>
   <nav>
     <div class="wrap">
-      <a class="logo" href="/">Estudia<b>!</b></a>
+      <a class="logo" href="/" aria-label="Estudia!"><svg class="logo-mark" viewBox="0 0 162 161" aria-hidden="true" focusable="false"><rect width="30" height="161" rx="15" fill="currentColor"/><rect x="42" width="120" height="37" rx="18.5" fill="#1D9E75"/><rect x="42" y="62" width="86" height="37" rx="18.5" fill="#E0A030"/><rect x="42" y="124" width="120" height="37" rx="18.5" fill="#E24B4A"/></svg><span aria-hidden="true">studia</span><b aria-hidden="true">!</b></a>
       <div class="links">
         <a href="#como-funciona">Cómo funciona</a>
         <a href="#precio">Precio</a>
@@ -176,7 +178,7 @@
         </div>
       </div>
       <div class="mock" aria-hidden="true">
-        <div class="bar-top"><span class="logo" style="font-size:16px">Estudia<b>!</b></span><span style="color:var(--muted)">2° Semestre</span></div>
+        <div class="bar-top"><span class="logo" style="font-size:17px" role="img" aria-label="Estudia!"><svg class="logo-mark" viewBox="0 0 162 161" aria-hidden="true" focusable="false"><rect width="30" height="161" rx="15" fill="currentColor"/><rect x="42" width="120" height="37" rx="18.5" fill="#1D9E75"/><rect x="42" y="62" width="86" height="37" rx="18.5" fill="#E0A030"/><rect x="42" y="124" width="120" height="37" rx="18.5" fill="#E24B4A"/></svg><span aria-hidden="true">studia</span><b aria-hidden="true">!</b></span><span style="color:var(--muted)">2° Semestre</span></div>
         <div class="r"><div class="t">Cálculo Diferencial <span class="pill p-v">Verde</span></div><div class="mbar"><span style="width:88%;background:var(--green)"></span></div></div>
         <div class="r"><div class="t">Física II <span class="pill p-a">Amarillo</span></div><div class="mbar"><span style="width:42%;background:var(--amber)"></span></div></div>
         <div class="r"><div class="t">Termodinámica <span class="pill p-r">Rojo</span></div><div class="mbar"><span style="width:20%;background:var(--red)"></span></div>
@@ -277,7 +279,7 @@
 
   <footer>
     <div class="wrap">
-      <span><span class="logo">Estudia<b>!</b></span> · © <span id="anio">2026</span></span>
+      <span><span class="logo" role="img" aria-label="Estudia!"><svg class="logo-mark" viewBox="0 0 162 161" aria-hidden="true" focusable="false"><rect width="30" height="161" rx="15" fill="currentColor"/><rect x="42" width="120" height="37" rx="18.5" fill="#1D9E75"/><rect x="42" y="62" width="86" height="37" rx="18.5" fill="#E0A030"/><rect x="42" y="124" width="120" height="37" rx="18.5" fill="#E24B4A"/></svg><span aria-hidden="true">studia</span><b aria-hidden="true">!</b></span> · © <span id="anio">2026</span></span>
       <div class="links">
         <a href="/privacidad">Privacidad</a>
         <a href="/terminos">Términos</a>

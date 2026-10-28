@@ -35,6 +35,9 @@ const fechaLarga = (iso) => {
 const params = new URLSearchParams(location.search);
 const ES_RECUPERACION = params.has('recuperar') || location.hash.includes('type=recovery');
 
+// Logo: la E de barras (semáforo) + "studia" + "!". El color de la barra vertical sigue al texto.
+const LOGO = '<svg class="logo-mark" viewBox="0 0 162 161" aria-hidden="true" focusable="false"><rect width="30" height="161" rx="15" fill="currentColor"/><rect x="42" width="120" height="37" rx="18.5" fill="#1D9E75"/><rect x="42" y="62" width="86" height="37" rx="18.5" fill="#E0A030"/><rect x="42" y="124" width="120" height="37" rx="18.5" fill="#E24B4A"/></svg><span aria-hidden="true">studia</span><b aria-hidden="true">!</b>';
+
 // ---------- Estado ----------
 
 const S = {
@@ -103,7 +106,7 @@ function render() {
 
 function viewError() {
   return `<div class="onb"><div class="onb-card">
-    <a class="logo" href="/">Estudia<b>!</b></a>
+    <a class="logo" href="/" aria-label="Estudia!">${LOGO}</a>
     <h1>No pudimos cargar tus datos</h1>
     <p class="muted">${esc(S.fatal)}</p>
     <div class="onb-actions"><button class="btn" data-act="logout">Cerrar sesión</button><button class="btn btn-teal" data-act="reintentar">Reintentar</button></div>
@@ -194,7 +197,7 @@ function viewAuth() {
 
   return `<div class="auth">
     <section class="auth-left">
-      <a class="logo" href="/">Estudia<b>!</b></a>
+      <a class="logo" href="/" aria-label="Estudia!">${LOGO}</a>
       <p class="tagline">Optimización académica basada en riesgo</p>
       <div class="auth-facts">
         <div><div class="big">1.0–7.0</div><div class="cap">Hecho para la escala de notas chilena</div></div>
@@ -375,7 +378,7 @@ function viewOnboarding() {
   const nombre = (p.nombre || '').split(' ')[0];
   const deducida = !p.universidad && universidadDesdeCorreo(S.data.email);
   return `<div class="onb"><form class="onb-card" data-form="onboarding" novalidate>
-    <span class="logo">Estudia<b>!</b></span>
+    <span class="logo" role="img" aria-label="Estudia!">${LOGO}</span>
     <h1>¡Hola${nombre ? ', ' + esc(nombre) : ''}! Cuéntanos un poco de ti</h1>
     <p class="muted" style="margin-top:0">Todo es opcional y lo puedes cambiar después en tu perfil.${deducida ? ' Dedujimos tu universidad por tu correo.' : ''}</p>
     ${camposPerfil(p, S.data.email)}
@@ -413,7 +416,7 @@ function viewApp() {
     : '';
   return `${demo}
   <header class="topbar">
-    <a class="logo" href="/" aria-label="Estudia! inicio">Estudia<b>!</b></a>
+    <a class="logo" href="/" aria-label="Estudia! inicio">${LOGO}</a>
     <div class="topbar-right">
       <button class="icon-btn" data-act="comentarios" aria-label="Enviar comentarios" title="Enviar comentarios">💬</button>
       <button class="icon-btn" data-act="toggle-alertas" aria-label="Alertas académicas${noLeidas ? `, ${noLeidas} sin leer` : ''}">🔔${noLeidas ? `<span class="badge">${noLeidas}</span>` : ''}</button>
@@ -1420,7 +1423,7 @@ function generarPDF() {
   };
   $print.innerHTML = `<div class="rep">
     <div class="rep-head">
-      <div><div class="logo">Estudia<b>!</b></div><div class="sub">Reporte académico semestral · ${esc(semActivo()?.etiqueta)}</div></div>
+      <div><div class="logo" role="img" aria-label="Estudia!">${LOGO}</div><div class="sub">Reporte académico semestral · ${esc(semActivo()?.etiqueta)}</div></div>
       <div class="who"><strong>${esc(p.nombre || S.data.email)}</strong><br>${esc([p.carrera, p.universidad].filter(Boolean).join(' · '))}<br>${hoy.toLocaleDateString('es-CL')}</div>
     </div>
     <div class="rep-stats">
