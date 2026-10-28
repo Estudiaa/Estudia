@@ -65,7 +65,7 @@ const evalsDe = (ramoId) => S.data.evaluaciones.filter((e) => e.ramo_id === ramo
 const analisis = () =>
   ramosActivos().map((ramo) => {
     const evals = evalsDe(ramo.id);
-    return { ramo, evals, calc: E.calcRamo(ramo, evals), asist: E.calcAsistencia(ramo) };
+    return { ramo, evals, calc: E.calcRamo(ramo, evals), asist: E.asistenciaActiva(ramo) ? E.calcAsistencia(ramo) : null };
   });
 
 // ---------- Render ----------
@@ -627,12 +627,17 @@ function viewDetalle(an) {
 }
 
 function viewAsistencia({ ramo, asist: a }) {
+  if (!a)
+    return `<section class="card asist-off">
+      <div><h2>Asistencia</h2><div class="card-sub">No estás llevando la asistencia de este ramo.</div></div>
+      <button class="btn btn-sm" data-act="asist-activar">+ Llevar asistencia</button>
+    </section>`;
   const pos = Math.min(100, Math.max(0, a.req));
   const pila = S.undo[ramo.id] || [];
   return `<section class="card z-${a.zona}">
     <div class="asist-top">
       <div><h2>Asistencia</h2>
-        <div class="card-sub"><span class="mono">${a.asistidas}</span> de <span class="mono">${a.realizadas}</span> clases realizadas · <span class="mono">${a.total}</span> en el semestre · Mínimo: <span class="mono">${a.req}%</span></div></div>
+        <div class="card-sub"><span class="mono">${a.asistidas}</span> de <span class="mono">${a.realizadas}</span> clases realizadas${a.conTotal ? ` · <span class="mono">${a.total}</span> en el semestre` : ''} · Mínimo: <span class="mono">${a.req}%</span></div></div>
       <div class="asist-pct">${a.realizadas ? a.pctActual + '%' : '—'}</div>
     </div>
     <div class="asist-bar">
@@ -642,9 +647,13 @@ function viewAsistencia({ ramo, asist: a }) {
     <div class="asist-scale"><span>0%</span><span>100%</span></div>
     <div class="asist-msg">${esc(E.mensajeAsistencia(a))}</div>
     <div class="mini-grid">
-      <div class="mini"><small>Restantes</small><div class="val">${a.restantes}</div></div>
+      ${a.conTotal
+        ? `<div class="mini"><small>Restantes</small><div class="val">${a.restantes}</div></div>
       <div class="mini"><small>Debes asistir</small><div class="val">${a.debesAsistir}</div></div>
-      <div class="mini"><small>Puedes faltar</small><div class="val">${a.puedeFaltar}</div></div>
+      <div class="mini"><small>Puedes faltar</small><div class="val">${a.puedeFaltar}</div></div>`
+        : `<div class="mini"><small>Realizadas</small><div class="val">${a.realizadas}</div></div>
+      <div class="mini"><small>Asistidas</small><div class="val">${a.asistidas}</div></div>
+      <div class="mini"><small>Faltas</small><div class="val">${a.faltas}</div></div>`}
     </div>
     <div class="btn-row">
       <button class="btn btn-green btn-sm" data-act="asist" data-tipo="asisti">+ Asistí hoy</button>
@@ -946,14 +955,7 @@ function modalRamo(m) {
         <div class="field"><label for="m-aprob">Nota de aprobación</label><input class="input mono" id="m-aprob" name="nota_aprobacion" inputmode="decimal" value="${esc(Number(r.nota_aprobacion ?? 4).toFixed(1))}"></div>
       </div>
       ${camposPresentacion(r)}
-      <div class="row">
-        <div class="field"><label for="m-req">% Asistencia requerida</label><input class="input mono" id="m-req" name="asist_requerida" inputmode="numeric" value="${v('asist_requerida', 75)}"></div>
-        <div class="field"><label for="m-total">Total de clases</label><input class="input mono" id="m-total" name="asist_total" inputmode="numeric" value="${v('asist_total', 30)}"></div>
-      </div>
-      <div class="row">
-        <div class="field"><label for="m-real">Clases realizadas</label><input class="input mono" id="m-real" name="asist_realizadas" inputmode="numeric" value="${v('asist_realizadas', 0)}"><span class="hint">Las que ya pasaron.</span></div>
-        <div class="field"><label for="m-asis">Clases asistidas</label><input class="input mono" id="m-asis" name="asist_asistidas" inputmode="numeric" value="${v('asist_asistidas', 0)}"></div>
-      </div>
+      ${camposAsistencia(r, nuevo)}
       ${nuevo ? `
         <div class="ev-sec hidden" data-sec="presentacion">
           <div class="section-label">Nota de presentación <span class="sec-hint">· los % suman 100% de la presentación</span></div>
@@ -974,6 +976,34 @@ function modalRamo(m) {
 
 const EVALS_SIMPLES = [{ nombre: 'Control 1', ponderacion: 30 }, { nombre: 'Solemne', ponderacion: 30 }, { nombre: 'Examen', ponderacion: 40 }];
 const EVALS_PRESENTACION = [{ nombre: 'Solemne 1', ponderacion: 35 }, { nombre: 'Solemne 2', ponderacion: 35 }, { nombre: 'Controles', ponderacion: 30, cantidad: 4 }];
+
+function camposAsistencia(r, nuevo) {
+  const activa = !nuevo && E.asistenciaActiva(r);
+  return `<div class="np-box">
+    <div class="field" style="margin-bottom:0"><span class="label">¿Este ramo exige asistencia mínima?</span>
+      <div class="seg" role="radiogroup" aria-label="Asistencia">
+        <label><input type="radio" name="asist_on" value="no" ${activa ? '' : 'checked'}><span>No</span></label>
+        <label><input type="radio" name="asist_on" value="si" ${activa ? 'checked' : ''}><span>Sí</span></label>
+      </div>
+      <span class="hint">Si la activas, después de cada clase marcas "Asistí" o "Falté".</span></div>
+    <div class="asist-campos ${activa ? '' : 'hidden'}">
+      ${camposNumerosAsistencia(r, 'm', !nuevo)}
+    </div>
+  </div>`;
+}
+
+function camposNumerosAsistencia(r, pre, conContadores) {
+  const total = r.asist_total === null || r.asist_total === undefined || Number(r.asist_total) === 0 ? '' : Number(r.asist_total);
+  return `<div class="row">
+      <div class="field"><label for="${pre}-req">% de asistencia mínima</label><input class="input mono" id="${pre}-req" name="asist_requerida" inputmode="numeric" value="${esc(r.asist_requerida ?? 75)}"></div>
+      <div class="field"><label for="${pre}-total">Total de clases</label><input class="input mono" id="${pre}-total" name="asist_total" inputmode="numeric" placeholder="Opcional" value="${esc(total)}"></div>
+    </div>
+    <p class="asist-hint">¿No sabes cuántas clases hay? Deja el total vacío: igual verás tu % de asistencia.</p>
+    ${conContadores ? `<div class="row">
+      <div class="field"><label for="${pre}-real">Clases realizadas</label><input class="input mono" id="${pre}-real" name="asist_realizadas" inputmode="numeric" value="${esc(r.asist_realizadas ?? 0)}"><span class="hint">Las que ya pasaron.</span></div>
+      <div class="field"><label for="${pre}-asis">Clases asistidas</label><input class="input mono" id="${pre}-asis" name="asist_asistidas" inputmode="numeric" value="${esc(r.asist_asistidas ?? 0)}"></div>
+    </div>` : ''}`;
+}
 
 function camposPresentacion(r) {
   const tiene = E.usaPresentacion(r);
@@ -1053,18 +1083,22 @@ function leerPresentacion(f) {
   }
 }
 
-function leerAsistencia(f, base) {
+// Lee la asistencia de un formulario. Sin "¿exige asistencia?" (modal de asistencia) se asume activa.
+// Si el formulario no trae contadores (ramo nuevo), parten en 0.
+function leerAsistencia(f, base, nuevo = false) {
+  const activa = f.asist_on ? f.asist_on.value === 'si' : true;
+  if (!activa) return nuevo ? { ...base, asist_activa: false, asist_requerida: 75, asist_total: null, asist_realizadas: 0, asist_asistidas: 0 } : { ...base, asist_activa: false };
   const req = num(f.asist_requerida.value) ?? 75;
-  const total = num(f.asist_total.value) ?? 30;
-  const asistidas = num(f.asist_asistidas.value) ?? 0;
-  const realizadas = num(f.asist_realizadas.value) ?? asistidas;
-  const ints = [req, total, realizadas, asistidas];
+  const total = num(f.asist_total.value) || null;
+  const asistidas = f.asist_asistidas ? num(f.asist_asistidas.value) ?? 0 : 0;
+  const realizadas = f.asist_realizadas ? num(f.asist_realizadas.value) ?? asistidas : 0;
+  const ints = [req, realizadas, asistidas, ...(total === null ? [] : [total])];
   if (ints.some((x) => !Number.isInteger(x) || x < 0)) return 'Los datos de asistencia deben ser números enteros positivos.';
-  if (req > 100) return 'El % de asistencia requerida debe estar entre 0 y 100.';
-  if (total > 500) return 'El total de clases parece demasiado alto.';
-  if (realizadas > total) return 'Las clases realizadas no pueden superar el total de clases.';
+  if (req > 100) return 'El % de asistencia mínima debe estar entre 0 y 100.';
+  if (total !== null && total > 500) return 'El total de clases parece demasiado alto.';
+  if (total !== null && realizadas > total) return 'Las clases realizadas no pueden superar el total de clases.';
   if (asistidas > realizadas) return 'Las clases asistidas no pueden superar las clases realizadas.';
-  return { ...base, asist_requerida: req, asist_total: total, asist_realizadas: realizadas, asist_asistidas: asistidas };
+  return { ...base, asist_activa: true, asist_requerida: req, asist_total: total, asist_realizadas: realizadas, asist_asistidas: asistidas };
 }
 
 function errModal(msg) {
@@ -1083,7 +1117,7 @@ async function guardarRamo(f) {
   if (Number.isNaN(aprob) || aprob < 1 || aprob > 7) return errModal('La nota de aprobación debe estar entre 1.0 y 7.0.');
   const npCampos = leerPresentacion(f);
   if (typeof npCampos === 'string') return errModal(npCampos);
-  const ramo = leerAsistencia(f, { nombre: nombre.slice(0, 120), horas_semana: round1(horas), nota_aprobacion: round1(aprob), ...npCampos });
+  const ramo = leerAsistencia(f, { nombre: nombre.slice(0, 120), horas_semana: round1(horas), nota_aprobacion: round1(aprob), ...npCampos }, !m.ramo);
   if (typeof ramo === 'string') return errModal(ramo);
 
   if (m.ramo) {
@@ -1154,14 +1188,9 @@ function modalAsist(m) {
     <div class="body">
       <div id="m-err"></div>
       <p class="muted" style="margin-top:0">${esc(r.nombre)}</p>
-      <div class="field"><label for="a-req">% Asistencia requerida</label><input class="input mono" id="a-req" name="asist_requerida" inputmode="numeric" value="${esc(r.asist_requerida)}" autofocus></div>
-      <div class="field"><label for="a-total">Total de clases del semestre</label><input class="input mono" id="a-total" name="asist_total" inputmode="numeric" value="${esc(r.asist_total)}"></div>
-      <div class="row">
-        <div class="field"><label for="a-real">Clases realizadas</label><input class="input mono" id="a-real" name="asist_realizadas" inputmode="numeric" value="${esc(r.asist_realizadas)}"></div>
-        <div class="field"><label for="a-asis">Clases asistidas</label><input class="input mono" id="a-asis" name="asist_asistidas" inputmode="numeric" value="${esc(r.asist_asistidas)}"></div>
-      </div>
+      ${camposNumerosAsistencia(r, 'a', true)}
     </div>
-    <footer><button type="button" class="btn" data-act="cerrar-modal">Cancelar</button><button class="btn btn-teal">Guardar</button></footer>
+    <footer><button type="button" class="linkbtn btn-danger" style="margin-right:auto;font-size:13px" data-act="asist-desactivar">Dejar de llevar asistencia</button><button type="button" class="btn" data-act="cerrar-modal">Cancelar</button><button class="btn btn-teal">Guardar</button></footer>
   </form>`;
 }
 
@@ -1427,7 +1456,7 @@ const acciones = {
   },
   async asist(el) {
     const r = S.data.ramos.find((x) => x.id === S.activeRamoId);
-    if (r.asist_realizadas >= r.asist_total)
+    if (r.asist_total > 0 && r.asist_realizadas >= r.asist_total)
       return toast({ zona: 'amarillo', titulo: 'Ya registraste todas las clases', detalle: 'Si el ramo tiene más clases, edita el total.' });
     const previo = { asist_realizadas: r.asist_realizadas, asist_asistidas: r.asist_asistidas };
     const cambios = { asist_realizadas: r.asist_realizadas + 1, asist_asistidas: r.asist_asistidas + (el.dataset.tipo === 'asisti' ? 1 : 0) };
@@ -1438,6 +1467,16 @@ const acciones = {
     const r = S.data.ramos.find((x) => x.id === S.activeRamoId);
     const previo = S.undo[r.id]?.pop();
     if (previo) await actualizar('ramos', r.id, previo);
+  },
+  async 'asist-activar'() {
+    const r = S.data.ramos.find((x) => x.id === S.activeRamoId);
+    if (await actualizar('ramos', r.id, { asist_activa: true })) abrirModal({ tipo: 'asist', ramo: r });
+  },
+  'asist-desactivar'() {
+    const r = S.modal.ramo;
+    cerrarModal();
+    actualizar('ramos', r.id, { asist_activa: false });
+    toast({ zona: 'neutral', titulo: 'Asistencia desactivada', detalle: 'Tus registros se guardan por si la vuelves a activar.', ms: 4000 });
   },
   'asist-editar'() {
     abrirModal({ tipo: 'asist', ramo: S.data.ramos.find((x) => x.id === S.activeRamoId) });
@@ -1588,6 +1627,7 @@ document.addEventListener('change', (ev) => {
   if (el.dataset.change === 'ev') cambiarEval(el);
   if (el.dataset.change === 'sub') cambiarSubNota(el);
   if (el.name === 'np_tiene') alternarPresentacion(el.form);
+  if (el.name === 'asist_on') el.form.querySelector('.asist-campos').classList.toggle('hidden', el.value !== 'si');
   if (el.name === 'ev_cant') {
     const nota = el.closest('.ev-row').querySelector('[name=ev_nota]');
     nota.disabled = Number(el.value) > 1;

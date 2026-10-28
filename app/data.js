@@ -74,7 +74,7 @@ export function semillaDemo(hoy = new Date()) {
   const semId = 'sem-activo';
   const ramos = [
     { id: 'r1', nombre: 'Cálculo Diferencial', horas_semana: 10, asist_requerida: 75, asist_total: 30, asist_realizadas: 25, asist_asistidas: 24 },
-    { id: 'r2', nombre: 'Física II', horas_semana: 8, asist_requerida: 75, asist_total: 30, asist_realizadas: 22, asist_asistidas: 18 },
+    { id: 'r2', nombre: 'Física II', horas_semana: 8, asist_requerida: 75, asist_total: null, asist_realizadas: 22, asist_asistidas: 18 },
     { id: 'r3', nombre: 'Termodinámica', horas_semana: 6, asist_requerida: 80, asist_total: 28, asist_realizadas: 20, asist_asistidas: 16 },
     { id: 'r4', nombre: 'Programación', horas_semana: 7, asist_requerida: 75, asist_total: 25, asist_realizadas: 23, asist_asistidas: 23, np_peso: 70, np_min_examen: 3.5 },
   ].map((r) => ({ ...r, user_id: 'demo', semestre_id: semId, nota_aprobacion: 4.0, nota_final: null }));

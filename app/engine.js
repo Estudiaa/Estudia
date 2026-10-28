@@ -212,25 +212,33 @@ export function fmtNota(x) {
 // ---------- Asistencia ----------
 // Bug §10.4: se separan clases realizadas (ya pasaron) de clases totales del semestre.
 
+// La asistencia es opcional por ramo (asist_activa = false la desactiva) y el total de
+// clases también: sin total se muestra el % actual contra el mínimo, sin proyectar faltas.
+export const asistenciaActiva = (ramo) => ramo?.asist_activa !== false;
+
 export function calcAsistencia({ asist_requerida, asist_total, asist_realizadas, asist_asistidas }) {
   const req = clampNum(asist_requerida, 0, 100, 75);
   const total = Math.max(0, Math.round(Number(asist_total) || 0));
-  const realizadas = Math.min(total, Math.max(0, Math.round(Number(asist_realizadas) || 0)));
+  const conTotal = total > 0;
+  const realizadas = Math.max(0, Math.round(Number(asist_realizadas) || 0));
   const asistidas = Math.min(realizadas, Math.max(0, Math.round(Number(asist_asistidas) || 0)));
+  const pctActual = realizadas > 0 ? Math.round((asistidas / realizadas) * 100) : 100;
 
-  const restantes = total - realizadas;
+  if (!conTotal) {
+    const caso = realizadas === 0 ? 'sin-clases' : pctActual >= req ? 'sin-total-ok' : 'sin-total-bajo';
+    const zona = { 'sin-clases': 'neutral', 'sin-total-ok': 'verde', 'sin-total-bajo': 'amarillo' }[caso];
+    return { req, total: null, conTotal, realizadas, asistidas, faltas: realizadas - asistidas, restantes: null, necesarias: null, debesAsistir: null, puedeFaltar: null, puedeAlcanzar: true, pctActual, pctFinalMax: null, zona, caso };
+  }
+
+  const restantes = Math.max(0, total - realizadas);
   const necesarias = Math.ceil((total * req) / 100 - EPS);
   const debesAsistir = Math.max(0, necesarias - asistidas);
   const puedeFaltar = Math.max(0, restantes - debesAsistir);
   const puedeAlcanzar = asistidas + restantes >= necesarias;
-  const pctActual = realizadas > 0 ? Math.round((asistidas / realizadas) * 100) : 100;
   const pctFinalMax = total > 0 ? Math.round(((asistidas + restantes) / total) * 100) : 100;
 
   let zona, caso;
-  if (total === 0) {
-    zona = 'neutral';
-    caso = 'sin-datos';
-  } else if (!puedeAlcanzar) {
+  if (!puedeAlcanzar) {
     zona = 'rojo';
     caso = 'imposible';
   } else if (debesAsistir === 0) {
@@ -247,13 +255,17 @@ export function calcAsistencia({ asist_requerida, asist_total, asist_realizadas,
     caso = 'debe-asistir';
   }
 
-  return { req, total, realizadas, asistidas, restantes, necesarias, debesAsistir, puedeFaltar, puedeAlcanzar, pctActual, pctFinalMax, zona, caso };
+  return { req, total, conTotal, realizadas, asistidas, faltas: realizadas - asistidas, restantes, necesarias, debesAsistir, puedeFaltar, puedeAlcanzar, pctActual, pctFinalMax, zona, caso };
 }
 
 export function mensajeAsistencia(a) {
   switch (a.caso) {
-    case 'sin-datos':
-      return 'Ingresa el total de clases del semestre para calcular tu asistencia.';
+    case 'sin-clases':
+      return 'Después de cada clase marca "Asistí" o "Falté" y verás tu % de asistencia.';
+    case 'sin-total-ok':
+      return `Vas con ${a.pctActual}% de asistencia, sobre el mínimo de ${a.req}%. Agrega el total de clases para saber cuántas puedes faltar.`;
+    case 'sin-total-bajo':
+      return `Vas con ${a.pctActual}% de asistencia, bajo el mínimo de ${a.req}%. Asiste a las próximas clases para subirlo.`;
     case 'imposible':
       return `Ya no es posible alcanzar el ${a.req}% requerido. Habla con tu profesor.`;
     case 'cumplido':
@@ -374,6 +386,8 @@ export function generarAlertas(ramos, hoy = new Date()) {
   for (const { ramo, asist } of ramos) {
     if (asist && asist.zona === 'rojo') {
       alertas.push({ id: `a:${ramo.id}:imposible`, zona: 'rojo', prioridad: 1, ramoId: ramo.id, titulo: `🚨 Asistencia de ${ramo.nombre}`, detalle: `Ya no es posible alcanzar el ${asist.req}% requerido.` });
+    } else if (asist && asist.caso === 'sin-total-bajo') {
+      alertas.push({ id: `a:${ramo.id}:bajo:${asist.realizadas}`, zona: 'amarillo', prioridad: 3, ramoId: ramo.id, titulo: `⚠ Asistencia de ${ramo.nombre} bajo el mínimo`, detalle: `Vas con ${asist.pctActual}% y necesitas ${asist.req}%.` });
     } else if (asist && asist.caso === 'limite') {
       alertas.push({ id: `a:${ramo.id}:limite:${asist.realizadas}`, zona: 'amarillo', prioridad: 3, ramoId: ramo.id, titulo: `⚠ Asistencia al límite en ${ramo.nombre}`, detalle: 'No puedes faltar a más clases.' });
     }

@@ -202,3 +202,29 @@ test('Sin derecho a examen y eximición', () => {
   assert.equal(sinExim.finalizado, false);
   assert.equal(sinExim.estadoMin, 'asegurado');
 });
+
+test('Asistencia opcional y sin total de clases', async () => {
+  const { asistenciaActiva } = await import('../app/engine.js');
+  assert.equal(asistenciaActiva({}), true);                  // ramos antiguos siguen con asistencia
+  assert.equal(asistenciaActiva({ asist_activa: false }), false);
+
+  const vacia = calcAsistencia({ asist_requerida: 75, asist_total: null, asist_realizadas: 0, asist_asistidas: 0 });
+  assert.equal(vacia.caso, 'sin-clases');
+  assert.equal(vacia.zona, 'neutral');
+
+  const ok = calcAsistencia({ asist_requerida: 75, asist_total: null, asist_realizadas: 8, asist_asistidas: 7 });
+  assert.equal(ok.conTotal, false);
+  assert.equal(ok.pctActual, 88);
+  assert.equal(ok.caso, 'sin-total-ok');
+  assert.equal(ok.faltas, 1);
+  assert.match(mensajeAsistencia(ok), /Agrega el total de clases/);
+
+  const bajo = calcAsistencia({ asist_requerida: 75, asist_total: '', asist_realizadas: 8, asist_asistidas: 5 });
+  assert.equal(bajo.caso, 'sin-total-bajo');
+  assert.equal(bajo.zona, 'amarillo');
+
+  // Con total vuelve el cálculo completo.
+  const con = calcAsistencia({ asist_requerida: 75, asist_total: 30, asist_realizadas: 8, asist_asistidas: 7 });
+  assert.equal(con.conTotal, true);
+  assert.equal(con.puedeFaltar, 6);
+});

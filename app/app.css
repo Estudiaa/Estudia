@@ -492,3 +492,7 @@ table.evals tr.sub-row td { padding-top: 0; }
 .sec-block .table-wrap { margin-top: 8px; }
 .sec-vacia { font-size: 13px; margin: 12px 0; }
 .input.mono::placeholder { font-family: var(--sans); font-size: 14px; }
+.asist-off { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.asist-campos { margin-top: 2px; }
+.asist-hint { font-size: 12px; color: var(--muted); margin: -6px 0 12px; }
+.np-box .asist-hint:last-child { margin-bottom: 0; }

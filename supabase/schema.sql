@@ -53,6 +53,11 @@ alter table public.ramos add column if not exists np_peso numeric(4,1) check (np
 alter table public.ramos add column if not exists np_min_examen numeric(2,1) check (np_min_examen between 1.0 and 7.0);
 alter table public.ramos add column if not exists np_eximicion numeric(2,1) check (np_eximicion between 1.0 and 7.0);
 
+-- Asistencia opcional: asist_activa = false la desactiva; asist_total puede quedar vacío
+-- (sin total de clases se muestra solo el % actual contra el mínimo).
+alter table public.ramos add column if not exists asist_activa boolean not null default true;
+alter table public.ramos alter column asist_total drop not null;
+
 create table if not exists public.evaluaciones (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
