@@ -76,6 +76,8 @@ alter table public.evaluaciones add column if not exists notas numeric(2,1)[] ch
   notas is null or (cardinality(notas) <= 20 and 1.0 <= all(notas) and 7.0 >= all(notas)));
 -- 'presentacion' = la ponderación es % de la nota de presentación; 'curso' = % de la nota final.
 alter table public.evaluaciones add column if not exists seccion text not null default 'curso' check (seccion in ('curso', 'presentacion'));
+-- Fecha de cada nota de un grupo (paralela a notas; null = sin fecha).
+alter table public.evaluaciones add column if not exists fechas date[] check (fechas is null or cardinality(fechas) <= 20);
 -- La suma de ponderaciones = 100 se valida en la app (al crear un ramo es obligatoria
 -- y en el detalle se avisa si no cuadra), porque se edita una evaluación a la vez.
 

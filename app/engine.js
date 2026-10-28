@@ -34,6 +34,22 @@ export function notaEval(e) {
 
 export const evalCompleta = (e) => (esGrupo(e) ? subNotas(e).every((n) => n !== null) : tieneNota(e));
 
+// Cada nota de un grupo tiene su propia fecha (columna fechas, paralela a notas).
+export function subFechas(e) {
+  const fechas = Array.isArray(e.fechas) ? e.fechas : [];
+  return subNotas(e).map((_, i) => (fechas[i] ? String(fechas[i]).slice(0, 10) : null));
+}
+
+// Lo que se rinde en un día: una evaluación simple, o cada nota de un grupo ("Controles 3").
+// idx = null para evaluaciones simples.
+export function itemsEval(e) {
+  if (!esGrupo(e))
+    return [{ e, idx: null, nombre: e.nombre, fecha: e.fecha ? String(e.fecha).slice(0, 10) : null, nota: tieneNota(e) ? Number(e.nota) : null, ponderacion: Number(e.ponderacion) }];
+  const notas = subNotas(e);
+  const fechas = subFechas(e);
+  return notas.map((nota, idx) => ({ e, idx, nombre: `${e.nombre} ${idx + 1}`, fecha: fechas[idx], nota, ponderacion: Number(e.ponderacion) / notas.length }));
+}
+
 export function expandirEvals(evaluaciones) {
   return evaluaciones.flatMap((e) =>
     esGrupo(e) ? subNotas(e).map((nota) => ({ ...e, ponderacion: Number(e.ponderacion) / subNotas(e).length, nota })) : [e],
@@ -393,11 +409,11 @@ export function generarAlertas(ramos, hoy = new Date()) {
     }
   }
   for (const { ramo, calc, evals } of ramos) {
-    for (const e of evals) {
-      if (evalCompleta(e) || !e.fecha) continue;
-      const n = diasRestantes(e.fecha, hoy);
+    for (const it of evals.flatMap(itemsEval)) {
+      if (it.nota !== null || !it.fecha) continue;
+      const n = diasRestantes(it.fecha, hoy);
       if (n === null || n < 0 || n > 3) continue;
-      alertas.push({ id: `e:${e.id}:${e.fecha}:${n}`, zona: calc.zona === 'neutral' ? 'amarillo' : calc.zona, prioridad: 4, ramoId: ramo.id, titulo: `📅 ${e.nombre} de ${ramo.nombre}`, detalle: `${etiquetaDias(n)} · ${Number(e.ponderacion)}% de la nota.` });
+      alertas.push({ id: `e:${it.e.id}:${it.idx ?? ''}:${it.fecha}:${n}`, zona: calc.zona === 'neutral' ? 'amarillo' : calc.zona, prioridad: 4, ramoId: ramo.id, titulo: `📅 ${it.nombre} de ${ramo.nombre}`, detalle: `${etiquetaDias(n)} · ${Math.round(it.ponderacion * 100) / 100}% de la nota.` });
     }
   }
   const verdes = ramos.filter((r) => r.calc.zona === 'verde').sort((a, b) => b.calc.prob - a.calc.prob);
@@ -431,14 +447,14 @@ export function sugerenciasDelDia(ramos, tareasHoy, hoy = new Date(), max = 4) {
   const out = [];
   const proximas = [];
   for (const { ramo, calc, evals } of ramos)
-    for (const e of evals) {
-      if (!e.fecha || evalCompleta(e)) continue;
-      const n = diasRestantes(e.fecha, hoy);
-      if (n !== null && n >= 0 && n <= 7) proximas.push({ ramo, calc, e, n });
+    for (const it of evals.flatMap(itemsEval)) {
+      if (!it.fecha || it.nota !== null) continue;
+      const n = diasRestantes(it.fecha, hoy);
+      if (n !== null && n >= 0 && n <= 7) proximas.push({ ramo, calc, it, n });
     }
   proximas.sort((a, b) => a.n - b.n);
-  for (const { ramo, e, n } of proximas)
-    out.push({ titulo: `Estudiar para ${e.nombre} de ${ramo.nombre}`, ramoId: ramo.id, motivo: n === 0 ? 'Es hoy' : etiquetaDias(n), zona: zonaDias(n) });
+  for (const { ramo, it, n } of proximas)
+    out.push({ titulo: `Estudiar para ${it.nombre} de ${ramo.nombre}`, ramoId: ramo.id, motivo: n === 0 ? 'Es hoy' : etiquetaDias(n), zona: zonaDias(n) });
 
   const plan = planHoras(ramos.map(({ ramo, calc }) => ({ id: ramo.id, nombre: ramo.nombre, horas: ramo.horas_semana, zona: calc.zona })));
   for (const f of plan.filas) {

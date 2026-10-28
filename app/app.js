@@ -502,7 +502,7 @@ function filaEvalDetalle(e, c) {
     <tr class="${grupo ? 'grp' : ''}">
       <td><div class="cell-name">
         <input class="cell-input" id="ev-${id}-nombre" data-change="ev" data-id="${id}" data-field="nombre" value="${esc(e.nombre)}" maxlength="80" aria-label="Nombre de la evaluación">
-        <input class="cell-input date" type="date" id="ev-${id}-fecha" data-change="ev" data-id="${id}" data-field="fecha" value="${esc(e.fecha ?? '')}" aria-label="Fecha de ${esc(e.nombre)}">
+        ${grupo ? '' : `<input class="cell-input date" type="date" id="ev-${id}-fecha" data-change="ev" data-id="${id}" data-field="fecha" value="${esc(e.fecha ?? '')}" aria-label="Fecha de ${esc(e.nombre)}">`}
         ${grupo ? '' : `<button class="linkbtn split-btn" id="split-${id}" data-act="dividir" data-id="${id}">÷ Es un promedio de varias notas</button>`}
         ${c.np ? `<button class="linkbtn split-btn" id="mover-${id}" data-act="mover" data-id="${id}">${enPres ? '→ Sacar de la presentación' : '→ Mover a la presentación'}</button>` : ''}
       </div></td>
@@ -513,6 +513,7 @@ function filaEvalDetalle(e, c) {
     </tr>`;
   if (!grupo) return fila;
   const notas = E.subNotas(e);
+  const fechas = E.subFechas(e);
   const cada = Math.round((Number(e.ponderacion) / notas.length) * 100) / 100;
   return fila + `
     <tr class="sub-row"><td colspan="5"><div class="subnotas">
@@ -524,7 +525,7 @@ function filaEvalDetalle(e, c) {
         </span>
       </div>
       <div class="subs">
-        ${notas.map((n, i) => `<label class="sub"><span>${i + 1}</span><input class="cell-input nota" inputmode="decimal" id="ev-${id}-n${i}" data-change="sub" data-id="${id}" data-idx="${i}" value="${n === null ? '' : n.toFixed(1)}" placeholder="Pend." aria-label="${esc(e.nombre)}, nota ${i + 1}"></label>`).join('')}
+        ${notas.map((n, i) => `<div class="sub"><span>${i + 1}</span><input class="cell-input nota" inputmode="decimal" id="ev-${id}-n${i}" data-change="sub" data-id="${id}" data-idx="${i}" value="${n === null ? '' : n.toFixed(1)}" placeholder="Pend." aria-label="${esc(e.nombre)}, nota ${i + 1}"><input class="cell-input date" type="date" id="ev-${id}-f${i}" data-change="subfecha" data-id="${id}" data-idx="${i}" value="${esc(fechas[i] ?? '')}" aria-label="Fecha de ${esc(e.nombre)} ${i + 1}"></div>`).join('')}
       </div>
     </div></td></tr>`;
 }
@@ -708,7 +709,7 @@ function viewHoy(an) {
   const hechas = deHoy.filter((x) => x.hecha).length;
   const atrasadas = E.tareasAtrasadas(S.data.tareas, iso);
   const sugerencias = E.sugerenciasDelDia(an, deHoy, hoy);
-  const evalsHoy = eventosActivos().filter((x) => x.e.fecha === iso && !E.evalCompleta(x.e));
+  const evalsHoy = eventosActivos().filter((x) => x.fecha === iso && x.nota === null);
   const pct = deHoy.length ? Math.round((hechas / deHoy.length) * 100) : 0;
   return `
     <section class="card">
@@ -716,7 +717,7 @@ function viewHoy(an) {
         <div><h2 class="hoy-tit">Hoy</h2><div class="card-sub">${esc(fechaHumana(hoy))}</div></div>
         ${deHoy.length ? `<div class="hoy-prog"><span class="mono">${hechas}/${deHoy.length}</span><div class="bar z-teal"><span style="width:${pct}%"></span></div></div>` : ''}
       </div>
-      ${evalsHoy.map((x) => `<div class="hoy-eval z-${x.zona}" data-act="ramo" data-id="${esc(x.ramo.id)}" role="button" tabindex="0">📌 <strong>${esc(x.e.nombre)}</strong> de ${esc(x.ramo.nombre)} es hoy · <span class="mono">${Number(x.e.ponderacion)}%</span></div>`).join('')}
+      ${evalsHoy.map((x) => `<div class="hoy-eval z-${x.zona}" data-act="ramo" data-id="${esc(x.ramo.id)}" role="button" tabindex="0">📌 <strong>${esc(x.nombre)}</strong> de ${esc(x.ramo.nombre)} es hoy · ${pctDe(x)}</div>`).join('')}
       ${formTarea(iso, 'hoy')}
       <div class="tareas">
         ${deHoy.length ? deHoy.map((x) => filaTarea(x)).join('') : '<p class="muted tareas-vacio">Nada por ahora. Agrega lo que quieres hacer hoy o elige una sugerencia.</p>'}
@@ -773,18 +774,24 @@ function viewPlan(an) {
 
 // ---------- Calendario ----------
 
+// Todo lo evaluado que tiene fecha: evaluaciones simples y cada nota de un grupo ("Controles 3").
 function eventosActivos() {
   const out = [];
-  for (const { ramo, calc, evals } of analisis()) for (const e of evals) if (e.fecha) out.push({ e, ramo, zona: calc.zona === 'neutral' ? 'amarillo' : calc.zona });
+  for (const { ramo, calc, evals } of analisis())
+    for (const it of evals.flatMap(E.itemsEval))
+      if (it.fecha) out.push({ ...it, ramo, zona: calc.zona === 'neutral' ? 'amarillo' : calc.zona });
   return out;
 }
+
+// "5% de la nota" o, dentro de una nota de presentación, "5% de la presentación".
+const pctDe = (x) => `<span class="mono">${Math.round(x.ponderacion * 100) / 100}%</span> de la ${E.usaPresentacion(x.ramo) && E.enPresentacion(x.e) ? 'presentación' : 'nota'}`;
 
 function viewCalendario() {
   const hoy = new Date();
   const mes = S.calMes || new Date(hoy.getFullYear(), hoy.getMonth(), 1);
   const ev = eventosActivos();
   const porDia = {};
-  for (const x of ev) (porDia[x.e.fecha] ||= []).push(x);
+  for (const x of ev) (porDia[x.fecha] ||= []).push(x);
   const tareasPorDia = {};
   for (const x of S.data.tareas) (tareasPorDia[x.fecha] ||= []).push(x);
   const inicio = new Date(mes.getFullYear(), mes.getMonth(), 1 - mes.getDay());
@@ -796,7 +803,7 @@ function viewCalendario() {
     const iso = E.isoFecha(d);
     const items = porDia[iso] || [];
     const cls = ['cal-day', 'has', d.getMonth() !== mes.getMonth() && 'other', iso === hoyIso && 'today'].filter(Boolean).join(' ');
-    const chips = items.slice(0, 2).map((x) => `<span class="chip z-${x.zona}" title="${esc(x.ramo.nombre)}: ${esc(x.e.nombre)}">${esc(x.e.nombre)}</span>`).join('');
+    const chips = items.slice(0, 2).map((x) => `<span class="chip z-${x.zona}" title="${esc(x.ramo.nombre)}: ${esc(x.nombre)}">${esc(x.nombre)}</span>`).join('');
     const mas = items.length > 2 ? `<span class="chip-more">+${items.length - 2}</span>` : '';
     const tds = tareasPorDia[iso] || [];
     const pend = tds.filter((x) => !x.hecha).length;
@@ -804,7 +811,7 @@ function viewCalendario() {
     celdas += `<button class="${cls}" data-act="dia" data-fecha="${iso}" aria-label="${d.getDate()} de ${MESES[d.getMonth()]}: ${items.length} evaluaciones, ${tds.length} tareas"><span class="d">${d.getDate()}</span>${chips}${mas}${tareasTxt}</button>`;
   }
   const proximas = ev
-    .map((x) => ({ ...x, n: E.diasRestantes(x.e.fecha, hoy) }))
+    .map((x) => ({ ...x, n: E.diasRestantes(x.fecha, hoy) }))
     .filter((x) => x.n >= 0 && x.n <= 45)
     .sort((a, b) => a.n - b.n);
   return `<section class="card">
@@ -823,10 +830,10 @@ function viewCalendario() {
   <section class="card">
     <div class="card-head"><div><h2>Próximas evaluaciones</h2><div class="card-sub">Próximos 45 días</div></div></div>
     ${proximas.length ? proximas.map((x) => {
-      const d = E.parseFecha(x.e.fecha);
+      const d = E.parseFecha(x.fecha);
       return `<div class="prox" data-act="ramo" data-id="${esc(x.ramo.id)}" role="button" tabindex="0">
         <div class="datebox"><div class="dd">${d.getDate()}</div><div class="mm">${MESES_ABR[d.getMonth()]}</div></div>
-        <div class="info"><strong>${esc(x.ramo.nombre)}</strong><span>${esc(x.e.nombre)} · <span class="mono">${Number(x.e.ponderacion)}%</span> de la nota</span></div>
+        <div class="info"><strong>${esc(x.ramo.nombre)}</strong><span>${esc(x.nombre)} · ${pctDe(x)}</span></div>
         ${pill(E.zonaDias(x.n), E.etiquetaDias(x.n))}
       </div>`;
     }).join('') : '<p class="muted">No hay evaluaciones próximas con fecha asignada.</p>'}
@@ -1241,7 +1248,7 @@ async function guardarRamo(f) {
     if (p === null || Number.isNaN(p) || p < 0 || p > 100) return errModal(`La ponderación de "${n}" debe estar entre 0 y 100.`);
     if (nota !== null && (Number.isNaN(nota) || nota < 1 || nota > 7)) return errModal(`La nota de "${n}" debe estar entre 1.0 y 7.0.`);
     const base = cant > 1
-      ? { nombre: n.slice(0, 80), ponderacion: p, nota: null, fecha, cantidad: cant, notas: Array(cant).fill(null) }
+      ? { nombre: n.slice(0, 80), ponderacion: p, nota: null, fecha: null, cantidad: cant, notas: Array(cant).fill(null), fechas: [fecha, ...Array(cant - 1).fill(null)] }
       : { nombre: n.slice(0, 80), ponderacion: p, nota: nota === null ? null : round1(nota), fecha };
     evals.push(seccion === 'presentacion' ? { ...base, seccion } : base);
   }
@@ -1295,21 +1302,53 @@ function modalConfirm(m) {
 
 function modalDia(m) {
   const d = E.parseFecha(m.fecha);
-  const items = eventosActivos().filter((x) => x.e.fecha === m.fecha);
+  const items = eventosActivos().filter((x) => x.fecha === m.fecha);
   const tareas = E.tareasDelDia(S.data.tareas, m.fecha);
+  const clave = (x) => `${x.e.id}|${x.idx ?? ''}`;
   return `<div class="modal sm" role="dialog" aria-modal="true" aria-labelledby="m-title">
     <header><h2 id="m-title">${esc(fechaHumana(d))}</h2><button type="button" class="x-btn" data-act="cerrar-modal" aria-label="Cerrar">✕</button></header>
     <div class="body">
       ${items.length ? '<div class="section-label" style="margin-top:0">Evaluaciones</div>' : ''}
       ${items.map((x) => `<div class="prox" data-act="ramo" data-id="${esc(x.ramo.id)}" role="button" tabindex="0">
-        <div class="info"><strong>${esc(x.e.nombre)}</strong><span>${esc(x.ramo.nombre)} · <span class="mono">${Number(x.e.ponderacion)}%</span> de la nota${E.notaEval(x.e) !== null ? ` · ${E.esGrupo(x.e) ? 'promedio' : 'nota'} <span class="mono">${fmt(E.notaEval(x.e))}</span>` : ''}</span></div>
-        ${pill(x.zona)}
+        <div class="info"><strong>${esc(x.nombre)}</strong><span>${esc(x.ramo.nombre)} · ${pctDe(x)}${x.nota !== null ? ` · nota <span class="mono">${fmt(x.nota)}</span>` : ''}</span></div>
+        ${x.nota === null ? `<button class="linkbtn quitar-fecha" data-act="quitar-fecha" data-item="${esc(clave(x))}">Quitar fecha</button>` : pill(x.zona)}
       </div>`).join('')}
+      ${formAgendar(m.fecha)}
       <div class="section-label"${items.length ? '' : ' style="margin-top:0"'}>Tareas</div>
       <div class="tareas">${tareas.length ? tareas.map((x) => filaTarea(x)).join('') : '<p class="muted tareas-vacio">Sin tareas para este día.</p>'}</div>
       ${formTarea(m.fecha, 'dia')}
     </div>
   </div>`;
+}
+
+// Agendar desde el calendario: cualquier evaluación o nota de grupo aún sin nota.
+// Si ya tenía fecha, se mueve a este día (útil cuando recalendarizan un control).
+function formAgendar(fecha) {
+  const grupos = analisis()
+    .map(({ ramo, evals }) => ({ ramo, items: evals.flatMap(E.itemsEval).filter((it) => it.nota === null && it.fecha !== fecha) }))
+    .filter((g) => g.items.length);
+  if (!grupos.length) return '';
+  const fechaCorta = (iso) => { const d = E.parseFecha(iso); return `${d.getDate()} ${MESES_ABR[d.getMonth()].toLowerCase()}`; };
+  return `<div class="section-label">Agendar evaluación</div>
+    <form class="agendar" data-form="agendar" novalidate>
+      <input type="hidden" name="fecha" value="${esc(fecha)}">
+      <select class="input" id="agendar-item" name="item" aria-label="Evaluación a agendar">
+        <option value="">Elige qué rindes este día…</option>
+        ${grupos.map((g) => `<optgroup label="${esc(g.ramo.nombre)}">${g.items.map((it) => `<option value="${esc(`${it.e.id}|${it.idx ?? ''}`)}">${esc(it.nombre)}${it.fecha ? ` (ahora el ${fechaCorta(it.fecha)})` : ' (sin fecha)'}</option>`).join('')}</optgroup>`).join('')}
+      </select>
+      <button class="btn btn-teal" id="agendar-btn">Agendar</button>
+    </form>
+    <p class="asist-hint" style="margin-top:6px">Si ya tenía fecha, se cambia a este día.</p>`;
+}
+
+async function fijarFecha(clave, fecha) {
+  const [id, idxTxt] = clave.split('|');
+  const e = S.data.evaluaciones.find((x) => x.id === id);
+  if (!e) return false;
+  if (idxTxt === '') return actualizar('evaluaciones', id, { fecha });
+  const fechas = E.subFechas(e);
+  fechas[Number(idxTxt)] = fecha;
+  return actualizar('evaluaciones', id, { fechas });
 }
 
 function modalComentario() {
@@ -1525,7 +1564,7 @@ const acciones = {
   dividir(el) {
     const e = S.data.evaluaciones.find((x) => x.id === el.dataset.id);
     const nota = E.notaEval(e);
-    actualizar('evaluaciones', e.id, { cantidad: 2, notas: [nota, null], nota: null });
+    actualizar('evaluaciones', e.id, { cantidad: 2, notas: [nota, null], fechas: [e.fecha ?? null, null], nota: null, fecha: null });
   },
   cantidad(el) {
     const e = S.data.evaluaciones.find((x) => x.id === el.dataset.id);
@@ -1534,8 +1573,13 @@ const acciones = {
     if (n > E.MAX_SUBNOTAS) return;
     if (n < notas.length && notas.at(-1) !== null)
       return toast({ zona: 'amarillo', titulo: `Primero borra la nota ${notas.length}`, detalle: 'Así no pierdes una nota por error.' });
-    if (n <= 1) return actualizar('evaluaciones', e.id, { cantidad: 1, notas: null, nota: notas[0] });
-    actualizar('evaluaciones', e.id, { cantidad: n, notas: n > notas.length ? [...notas, null] : notas.slice(0, n) });
+    const fechas = E.subFechas(e);
+    if (n <= 1) return actualizar('evaluaciones', e.id, { cantidad: 1, notas: null, fechas: null, nota: notas[0], fecha: fechas[0] ?? e.fecha ?? null });
+    actualizar('evaluaciones', e.id, {
+      cantidad: n,
+      notas: n > notas.length ? [...notas, null] : notas.slice(0, n),
+      fechas: n > notas.length ? [...fechas, null] : fechas.slice(0, n),
+    });
   },
   async 'borrar-ev'(el) {
     const id = el.dataset.id;
@@ -1583,6 +1627,9 @@ const acciones = {
     const base = S.calMes || new Date(hoy.getFullYear(), hoy.getMonth(), 1);
     S.calMes = new Date(base.getFullYear(), base.getMonth() + Number(el.dataset.d), 1);
     render();
+  },
+  async 'quitar-fecha'(el) {
+    if (await fijarFecha(el.dataset.item, null)) refrescarModalDia();
   },
   async 'tarea-toggle'(el) {
     const x = S.data.tareas.find((t) => t.id === el.dataset.id);
@@ -1724,6 +1771,15 @@ document.addEventListener('submit', async (ev) => {
     return actualizar('ramos', r.id, cambios);
   }
   if (tipo === 'comentario') return enviarComentario(f);
+  if (tipo === 'agendar') {
+    if (!f.item.value) return f.item.focus();
+    const nombre = f.item.selectedOptions[0].textContent.replace(/ \(.*\)$/, '');
+    if (await fijarFecha(f.item.value, f.fecha.value)) {
+      refrescarModalDia();
+      toast({ zona: 'verde', titulo: `✓ ${nombre} agendado`, detalle: fechaHumana(E.parseFecha(f.fecha.value)), ms: 3000 });
+    }
+    return;
+  }
   if (tipo === 'tarea') {
     const titulo = f.titulo.value.trim();
     if (!titulo) return f.titulo.focus();
@@ -1768,6 +1824,7 @@ document.addEventListener('change', (ev) => {
   }
   if (el.dataset.change === 'ev') cambiarEval(el);
   if (el.dataset.change === 'sub') cambiarSubNota(el);
+  if (el.dataset.change === 'subfecha') fijarFecha(`${el.dataset.id}|${el.dataset.idx}`, el.value || null);
   if (el.name === 'np_tiene') alternarPresentacion(el.form);
   if (el.name === 'asist_on') el.form.querySelector('.asist-campos').classList.toggle('hidden', el.value !== 'si');
   if (el.name === 'ev_cant') {

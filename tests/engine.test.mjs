@@ -254,3 +254,20 @@ test('Tareas del día, atrasadas y sugerencias', async () => {
   const s2 = sugerenciasDelDia([termo, fisica, calculo], [{ titulo: 'Estudiar para Examen de Física II' }], hoy);
   assert.ok(!s2.some((x) => x.ramoId === 'f'));
 });
+
+test('Cada nota de un grupo tiene su propia fecha', async () => {
+  const { itemsEval, subFechas, sugerenciasDelDia } = await import('../app/engine.js');
+  const controles = { id: 'g', nombre: 'Controles', ponderacion: 20, cantidad: 4, notas: [5.0, null, null, null], fechas: ['2026-10-01', '2026-10-29', null] };
+  assert.deepEqual(subFechas(controles), ['2026-10-01', '2026-10-29', null, null]);
+  const items = itemsEval(controles);
+  assert.equal(items.length, 4);
+  assert.deepEqual(items[1], { e: controles, idx: 1, nombre: 'Controles 2', fecha: '2026-10-29', nota: null, ponderacion: 5 });
+  assert.equal(itemsEval({ nombre: 'Examen', ponderacion: 40, fecha: '2026-11-20', nota: null })[0].idx, null);
+
+  // Alertas y sugerencias usan la fecha de cada control.
+  const hoy = new Date(2026, 9, 28);
+  const r = { ramo: { id: 'go', nombre: 'Gestión de Operaciones', horas_semana: 6 }, calc: calcRamo({}, [controles, ev(80, 5.0)]), evals: [controles, ev(80, 5.0)] };
+  const alertas = generarAlertas([r], hoy);
+  assert.ok(alertas.some((a) => a.titulo === '📅 Controles 2 de Gestión de Operaciones' && a.detalle.startsWith('Mañana')));
+  assert.equal(sugerenciasDelDia([r], [], hoy)[0].titulo, 'Estudiar para Controles 2 de Gestión de Operaciones');
+});

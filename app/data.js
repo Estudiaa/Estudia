@@ -81,7 +81,7 @@ export function semillaDemo(hoy = new Date()) {
   const e = (id, ramo_id, nombre, ponderacion, nota, fecha) => ({ id, user_id: 'demo', ramo_id, nombre, ponderacion, nota, fecha });
   const evaluaciones = [
     e('e1', 'r1', 'Control 1', 30, 6.0, hace(40)), e('e2', 'r1', 'Control 2', 30, 5.8, hace(12)), e('e3', 'r1', 'Examen', 40, null, en(21)),
-    { ...e('e4', 'r2', 'Controles', 25, null, hace(6)), cantidad: 4, notas: [3.5, 4.2, null, null] }, e('e5', 'r2', 'Solemne', 35, 4.1, hace(2)), e('e6', 'r2', 'Examen', 40, null, en(30)),
+    { ...e('e4', 'r2', 'Controles', 25, null, null), cantidad: 4, notas: [3.5, 4.2, null, null], fechas: [hace(20), hace(6), en(1), null] }, e('e5', 'r2', 'Solemne', 35, 4.1, hace(2)), e('e6', 'r2', 'Examen', 40, null, en(30)),
     e('e7', 'r3', 'Control 1', 20, 2.0, hace(30)), e('e8', 'r3', 'Solemne 1', 30, 2.5, hace(9)), e('e9', 'r3', 'Examen', 50, null, en(14)),
     { ...e('e10', 'r4', 'Proyecto 1', 50, 6.5, hace(25)), seccion: 'presentacion' }, { ...e('e11', 'r4', 'Proyecto 2', 50, null, en(5)), seccion: 'presentacion' }, e('e12', 'r4', 'Examen', 30, null, en(25)),
   ];

@@ -1,7 +1,7 @@
 // Service worker de Estudia!: permite instalar la app y abrirla sin conexión.
 // Estrategia: red primero para archivos propios (siempre la versión más nueva) y
 // caché como respaldo. Nunca intercepta las llamadas a Supabase (datos y sesión).
-const CACHE = 'estudia-v7';
+const CACHE = 'estudia-v8';
 const SHELL = [
   '/', '/app/', '/app/app.css', '/app/app.js', '/app/engine.js', '/app/store.js', '/app/data.js',
   '/config.js', '/landing.js', '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png',

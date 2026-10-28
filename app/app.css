@@ -532,3 +532,11 @@ table.evals tr.sub-row td { padding-top: 0; }
   /* En "Hoy" el día va primero en el celular; los ramos quedan debajo. */
   .layout.tab-hoy .sidebar { order: 2; }
 }
+
+/* ---------- Fechas por nota y agendar ---------- */
+.subs { gap: 8px 14px; }
+.sub { flex-wrap: nowrap; }
+.sub .cell-input.date { width: 136px; max-width: none; background: var(--surface); border-color: var(--border); color: var(--muted); }
+.agendar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.quitar-fecha { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.quitar-fecha:hover { color: var(--red); }
