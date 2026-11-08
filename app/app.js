@@ -300,6 +300,31 @@ const authForms = {
   },
 };
 
+// ---------- Ramo calculado en la portada ----------
+// La calculadora de la portada deja un borrador en este navegador. Al entrar con una cuenta
+// real se ofrece como ramo nuevo, ya lleno, para revisarlo y guardarlo.
+const CLAVE_BORRADOR = 'estudia.borrador';
+function leerBorrador() {
+  try {
+    const b = JSON.parse(localStorage.getItem(CLAVE_BORRADOR) || 'null');
+    return b && Array.isArray(b.evals) && b.evals.length ? b : null;
+  } catch {
+    return null;
+  }
+}
+function borrarBorrador() {
+  try {
+    localStorage.removeItem(CLAVE_BORRADOR);
+  } catch {}
+}
+function ofrecerBorrador() {
+  if (S.store?.demo || S.view !== 'app' || S.modal) return;
+  const b = leerBorrador();
+  if (!b) return;
+  abrirModal({ tipo: 'ramo', precarga: b });
+  actualizarSuma();
+}
+
 // ---------- Entrar / salir ----------
 
 async function entrar(store) {
@@ -323,7 +348,10 @@ async function entrar(store) {
   S.data.tareas ||= [];
   S.view = S.data.profile.onboarded_at ? 'app' : 'onboarding';
   render();
-  if (S.view === 'app') avisosIniciales();
+  if (S.view === 'app') {
+    avisosIniciales();
+    ofrecerBorrador();
+  }
 }
 
 async function salir() {
@@ -396,6 +424,7 @@ async function terminarOnboarding(cambios) {
     S.view = 'app';
     render();
     avisosIniciales();
+    ofrecerBorrador();
   } catch (err) {
     toastError(err);
   } finally {
@@ -1024,6 +1053,10 @@ function abrirModal(m) {
   renderModal();
 }
 function cerrarModal() {
+  if (S.modal?.precarga && leerBorrador()) {
+    borrarBorrador();
+    toast({ zona: 'neutral', titulo: 'Descartamos el ramo de la calculadora', ms: 3500 });
+  }
   S.modal = null;
   delete $modal.dataset.k;
   $modal.innerHTML = '';
@@ -1043,13 +1076,15 @@ function filaEval(e = {}) {
 }
 
 function modalRamo(m) {
-  const r = m.ramo || {};
+  const r = m.ramo || (m.precarga ? { nombre: m.precarga.nombre, nota_aprobacion: m.precarga.nota_aprobacion } : {});
   const nuevo = !m.ramo;
+  const evalsCurso = m.precarga ? m.precarga.evals : EVALS_SIMPLES;
   const v = (k, d) => esc(r[k] ?? d);
   return `<form class="modal" data-form="ramo" novalidate role="dialog" aria-modal="true" aria-labelledby="m-title">
     <header><h2 id="m-title">${nuevo ? 'Agregar nuevo ramo' : 'Editar ramo'}</h2><button type="button" class="x-btn" data-act="cerrar-modal" aria-label="Cerrar">✕</button></header>
     <div class="body">
       <div id="m-err"></div>
+      ${m.precarga ? '<div class="info-box">Traemos lo que calculaste en la portada. Revísalo, agrega fechas si quieres y guárdalo.</div>' : ''}
       <div class="field"><label for="m-nombre">Nombre del ramo</label><input class="input" id="m-nombre" name="nombre" maxlength="120" value="${v('nombre', '')}" placeholder="Ej: Cálculo Diferencial" autofocus></div>
       <div class="row">
         <div class="field"><label for="m-horas">Horas disponibles/semana</label><input class="input mono" id="m-horas" name="horas_semana" inputmode="decimal" value="${v('horas_semana', 6)}"></div>
@@ -1067,7 +1102,7 @@ function modalRamo(m) {
         <div class="ev-sec" data-sec="curso">
           <div class="section-label" id="m-curso-label">Evaluaciones</div>
           <div class="ev-row ev-row-head"><span>Nombre</span><span>Pond. %</span><span>Cantidad</span><span>Nota</span><span>Fecha</span><span></span></div>
-          <div class="ev-rows" data-sec="curso">${EVALS_SIMPLES.map(filaEval).join('')}</div>
+          <div class="ev-rows" data-sec="curso"${m.precarga ? ' data-tocado="1"' : ''}>${evalsCurso.map(filaEval).join('')}</div>
           <button type="button" class="btn-dashed" data-act="agregar-fila" data-sec="curso">+ Agregar evaluación</button>
         </div>` : ''}
     </div>
@@ -1272,6 +1307,7 @@ async function guardarRamo(f) {
     if (evals.length) S.data.evaluaciones.push(...(await S.store.insert('evaluaciones', evals.map((e) => ({ ...e, ramo_id: creado.id })))));
     S.activeRamoId = creado.id;
     S.tab = 'detalle';
+    if (m.precarga) borrarBorrador();
     cerrarModal();
     render();
     toast({ zona: 'verde', titulo: `✓ ${creado.nombre} agregado` });

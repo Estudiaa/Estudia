@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Estudia! · Optimización académica basada en riesgo</title>
+  <title>Estudia! · Calcula cuánto necesitas en el examen</title>
   <meta name="description" content="Para universitarios chilenos: calcula la nota que necesitas, tu zona de riesgo por ramo y cómo repartir tus horas de estudio. Gratis durante la beta.">
   <meta name="theme-color" content="#0D1B3E">
   <link rel="manifest" href="/manifest.webmanifest">
@@ -38,6 +38,37 @@
     .btn-line { border-color: rgba(255,255,255,.25); color: #fff; }
     .btn-line:hover { background: rgba(255,255,255,.06); }
 
+    /* Calculadora (gancho sin cuenta) */
+    .calc { background: #fff; color: var(--text); border-radius: 16px; padding: 26px 24px 20px; box-shadow: 0 30px 60px rgba(0,0,0,.35); scroll-margin-top: 80px; }
+    .calc h2 { font: 700 24px/1.2 var(--sans); letter-spacing: -0.01em; margin: 0; }
+    .calc-sub { color: var(--muted); font-size: 14px; margin: 4px 0 16px; }
+    .calc-in { font: inherit; font-size: 15px; border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0; background: #fff; color: var(--text); }
+    .calc-in:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-lt); }
+    .calc-in.mono { font-family: var(--mono); text-align: center; }
+    .calc-in.mal { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-lt); }
+    .calc-top { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .calc-aprob { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .calc-aprob .calc-in { width: 62px; }
+    .calc-fila { display: grid; grid-template-columns: minmax(0, 1fr) 64px 72px 30px; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .calc-cab { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .calc-cab span:nth-child(2), .calc-cab span:nth-child(3) { text-align: center; }
+    .calc-x { border: 0; background: none; color: var(--light); font-size: 15px; width: 30px; height: 30px; border-radius: 6px; cursor: pointer; }
+    .calc-x:hover { background: var(--red-lt); color: var(--red); }
+    .calc-add { border: 1.5px dashed var(--border); background: none; border-radius: 8px; width: 100%; padding: 8px; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
+    .calc-add:hover { border-color: var(--teal); color: var(--teal); }
+    .calc-suma { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+    .calc-suma.mal { color: #9A5B0E; }
+    .calc-res { margin-top: 10px; border-radius: 12px; padding: 16px 18px; background: var(--rl, #EEF2F7); color: var(--rt, var(--muted)); display: flex; gap: 16px; align-items: center; min-height: 88px; }
+    .calc-res .big { font: 500 44px/1 var(--mono); color: var(--rc, var(--text)); flex: none; }
+    .calc-res .txt { font-size: 14px; line-height: 1.45; }
+    .calc-res .txt strong { display: block; font-size: 15px; color: var(--rt, var(--text)); }
+    .calc-res.verde { --rl: var(--green-lt); --rt: #085041; --rc: var(--green); }
+    .calc-res.amarillo { --rl: var(--amber-lt); --rt: #633806; --rc: #BA7517; }
+    .calc-res.rojo { --rl: var(--red-lt); --rt: #791F1F; --rc: var(--red); }
+    .calc-guardar { width: 100%; justify-content: center; margin-top: 14px; border: 0; cursor: pointer; font: inherit; font-weight: 500; }
+    .calc-guardar[disabled] { opacity: .5; cursor: not-allowed; transform: none; }
+    .calc-pie { text-align: center; color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+
     /* Nav */
     nav { position: fixed; inset: 0 0 auto; height: 64px; background: rgba(255,255,255,.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 10; }
     nav .wrap { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -61,16 +92,6 @@
     .hero-stats { display: flex; gap: 40px; margin-top: 48px; flex-wrap: wrap; }
     .hero-stats .n { font: 500 28px var(--mono); color: #fff; }
     .hero-stats .c { color: var(--teal-md); font-size: 13px; }
-    .mock { background: #fff; color: var(--text); border-radius: 14px; padding: 18px; box-shadow: 0 30px 60px rgba(0,0,0,.35); animation: float 6s ease-in-out infinite; font-size: 13px; }
-    @keyframes float { 50% { transform: translateY(-10px); } }
-    .mock .bar-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-    .mock .r { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
-    .mock .r .t { display: flex; justify-content: space-between; align-items: center; font-weight: 500; }
-    .pill { border-radius: 99px; padding: 1px 9px; font-size: 11px; font-weight: 500; }
-    .p-v { background: var(--green-lt); color: #085041; } .p-a { background: var(--amber-lt); color: #633806; } .p-r { background: var(--red-lt); color: #791F1F; }
-    .mbar { height: 5px; background: #EDF1F6; border-radius: 99px; margin-top: 8px; overflow: hidden; }
-    .mbar span { display: block; height: 100%; border-radius: 99px; }
-    .mock .need { background: var(--red-lt); color: #791F1F; border-radius: 8px; padding: 8px 10px; font-weight: 500; margin-top: 10px; }
 
     section { padding: 96px 0; }
     .eyebrow { color: var(--teal); font-weight: 600; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
@@ -133,7 +154,18 @@
 
     @media (max-width: 900px) {
       .hero .wrap { grid-template-columns: 1fr; }
-      .mock { display: none; }
+      .hero-stats { display: none; }
+      /* En el celular la calculadora es el gancho: subirla a la primera pantalla. */
+      .hero { padding-top: 84px; padding-bottom: 48px; }
+      .hero h1 { font-size: 34px; margin: 12px 0 10px; }
+      .hero p.lead { display: none; }
+      .hero h1 { margin-bottom: 22px; }
+      .hero .cta { display: none; }
+      .hero .wrap { gap: 0; }
+      .tag { font-size: 12px; padding: 4px 12px; }
+      .calc { padding: 20px 16px 16px; }
+      .calc h2 { font-size: 21px; }
+      .calc-sub { margin-bottom: 12px; }
       .steps { grid-template-columns: 1fr 1fr; }
       .fgrid { grid-template-columns: 1fr 1fr; }
     }
@@ -169,7 +201,7 @@
         <p class="lead">Analiza tu riesgo de reprobar cada ramo, descubre qué nota necesitas en lo que queda y redistribuye tus horas de estudio donde más importan.</p>
         <div class="cta">
           <a class="btn btn-teal" href="/app/?registro=1">Empezar gratis →</a>
-          <a class="btn btn-line" href="#como-funciona">Ver cómo funciona ↓</a>
+          <a class="btn btn-line" href="#calculadora">Calcula tu nota ↓</a>
         </div>
         <div class="hero-stats">
           <div><div class="n">1.0–7.0</div><div class="c">Escala de notas chilena</div></div>
@@ -177,13 +209,21 @@
           <div><div class="n">$0</div><div class="c">Durante la beta</div></div>
         </div>
       </div>
-      <div class="mock" aria-hidden="true">
-        <div class="bar-top"><span class="logo" style="font-size:17px" role="img" aria-label="Estudia!"><svg class="logo-mark" viewBox="0 0 162 161" aria-hidden="true" focusable="false"><rect width="30" height="161" rx="15" fill="currentColor"/><rect x="42" width="120" height="37" rx="18.5" fill="#1D9E75"/><rect x="42" y="62" width="86" height="37" rx="18.5" fill="#E0A030"/><rect x="42" y="124" width="120" height="37" rx="18.5" fill="#E24B4A"/></svg><span aria-hidden="true">studia</span><b aria-hidden="true">!</b></span><span style="color:var(--muted)">2° Semestre</span></div>
-        <div class="r"><div class="t">Cálculo Diferencial <span class="pill p-v">Verde</span></div><div class="mbar"><span style="width:88%;background:var(--green)"></span></div></div>
-        <div class="r"><div class="t">Física II <span class="pill p-a">Amarillo</span></div><div class="mbar"><span style="width:42%;background:var(--amber)"></span></div></div>
-        <div class="r"><div class="t">Termodinámica <span class="pill p-r">Rojo</span></div><div class="mbar"><span style="width:20%;background:var(--red)"></span></div>
-          <div class="need">! Actúa ahora. Necesitas <span style="font-family:var(--mono)">6.7</span> en el examen.</div></div>
-      </div>
+      <section class="calc" id="calculadora" aria-labelledby="calc-tit">
+        <h2 id="calc-tit">¿Cuánto necesitas en el examen?</h2>
+        <p class="calc-sub">Pon tus notas y porcentajes. Sin registrarte.</p>
+        <div class="calc-top">
+          <input class="calc-in" id="calc-ramo" maxlength="80" placeholder="Ramo (opcional), ej: Cálculo" aria-label="Nombre del ramo (opcional)" autocomplete="off">
+          <label class="calc-aprob">Apruebas con <input class="calc-in mono" id="calc-aprob" inputmode="decimal" value="4.0" aria-label="Nota de aprobación"></label>
+        </div>
+        <div class="calc-fila calc-cab" aria-hidden="true"><span>Evaluación</span><span>%</span><span>Nota</span><span></span></div>
+        <div id="calc-filas"></div>
+        <button type="button" class="calc-add" id="calc-agregar">+ Agregar evaluación</button>
+        <div class="calc-suma" id="calc-suma" aria-live="polite"></div>
+        <div class="calc-res" id="calc-res" aria-live="polite"></div>
+        <button type="button" class="btn btn-teal calc-guardar" id="calc-guardar">Guardar este ramo y recibir avisos →</button>
+        <p class="calc-pie">Gratis. Al crear tu cuenta, este ramo queda guardado.</p>
+      </section>
     </div>
   </header>
 
